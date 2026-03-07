@@ -19,7 +19,16 @@ fn run_cargo(args: &[&str]) -> std::process::Output {
 
 #[test]
 fn all_workspace_members_build() {
-    let output = run_cargo(&["check", "-p", "rarag", "-p", "raragd", "-p", "rarag-mcp", "--quiet"]);
+    let output = run_cargo(&[
+        "check",
+        "-p",
+        "rarag",
+        "-p",
+        "raragd",
+        "-p",
+        "rarag-mcp",
+        "--quiet",
+    ]);
     assert!(
         output.status.success(),
         "cargo check failed\nstdout:\n{}\nstderr:\n{}",
@@ -40,6 +49,9 @@ fn binaries_start_with_help() {
         );
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(stdout.contains(package), "expected help output to mention {package}, got: {stdout}");
+        assert!(
+            stdout.contains(package),
+            "expected help output to mention {package}, got: {stdout}"
+        );
     }
 }
