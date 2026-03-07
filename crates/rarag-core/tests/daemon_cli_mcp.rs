@@ -24,7 +24,9 @@ fn fixture_root() -> PathBuf {
 fn ensure_binary(name: &str) -> PathBuf {
     static BUILT: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
     let built = BUILT.get_or_init(|| Mutex::new(Vec::new()));
-    let mut built = built.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut built = built
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     if !built.iter().any(|entry| entry == name) {
         let status = Command::new("cargo")
             .arg("build")
@@ -90,13 +92,19 @@ fn probe_server(binary: &str, socket_path: &Path) -> Result<(), String> {
 
     let mut stream = UnixStream::connect(socket_path).map_err(|err| err.to_string())?;
     stream
-        .write_all(serde_json::to_vec(&body).map_err(|err| err.to_string())?.as_slice())
+        .write_all(
+            serde_json::to_vec(&body)
+                .map_err(|err| err.to_string())?
+                .as_slice(),
+        )
         .map_err(|err| err.to_string())?;
     stream
         .shutdown(std::net::Shutdown::Write)
         .map_err(|err| err.to_string())?;
     let mut response = Vec::new();
-    stream.read_to_end(&mut response).map_err(|err| err.to_string())?;
+    stream
+        .read_to_end(&mut response)
+        .map_err(|err| err.to_string())?;
     if response.is_empty() {
         Err("empty probe response".to_string())
     } else {
@@ -120,9 +128,15 @@ fn run_cli(args: &[&str]) -> String {
 fn mcp_request(socket_path: &Path, body: Value) -> Value {
     let mut stream = UnixStream::connect(socket_path).expect("connect mcp socket");
     stream
-        .write_all(serde_json::to_vec(&body).expect("serialize mcp request").as_slice())
+        .write_all(
+            serde_json::to_vec(&body)
+                .expect("serialize mcp request")
+                .as_slice(),
+        )
         .expect("write request");
-    stream.shutdown(std::net::Shutdown::Write).expect("shutdown write");
+    stream
+        .shutdown(std::net::Shutdown::Write)
+        .expect("shutdown write");
     let mut response = Vec::new();
     stream.read_to_end(&mut response).expect("read response");
     serde_json::from_slice(&response).expect("deserialize response")
@@ -180,6 +194,7 @@ fn cli_and_mcp_observe_same_snapshot_result() {
             "--socket",
             daemon_socket.to_str().expect("daemon socket"),
             "--test-deterministic-embeddings",
+            "--test-memory-vector-store",
         ],
         &daemon_socket,
     );
@@ -273,6 +288,7 @@ fn cli_and_mcp_roundtrip_against_local_daemon() {
             "--socket",
             daemon_socket.to_str().expect("daemon socket"),
             "--test-deterministic-embeddings",
+            "--test-memory-vector-store",
         ],
         &daemon_socket,
     );
@@ -306,7 +322,11 @@ fn cli_and_mcp_roundtrip_against_local_daemon() {
         "--json",
     ]);
     let cli_json: Value = serde_json::from_str(&cli_stdout).expect("cli json");
-    assert!(cli_json["items"].as_array().is_some_and(|items| !items.is_empty()));
+    assert!(
+        cli_json["items"]
+            .as_array()
+            .is_some_and(|items| !items.is_empty())
+    );
 
     let mut mcp = spawn_server(
         "rarag-mcp",
@@ -332,9 +352,11 @@ fn cli_and_mcp_roundtrip_against_local_daemon() {
             }
         }),
     );
-    assert!(mcp_response["result"]["items"]
-        .as_array()
-        .is_some_and(|items| !items.is_empty()));
+    assert!(
+        mcp_response["result"]["items"]
+            .as_array()
+            .is_some_and(|items| !items.is_empty())
+    );
 
     let _ = daemon.kill();
     let _ = daemon.wait();

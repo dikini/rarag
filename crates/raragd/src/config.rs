@@ -12,6 +12,7 @@ pub struct ServeConfig {
     pub socket_path: Option<PathBuf>,
     pub config_path: Option<PathBuf>,
     pub deterministic_embeddings: bool,
+    pub memory_vector_store: bool,
 }
 
 pub fn parse_args(args: &[String]) -> Result<Command, String> {
@@ -25,7 +26,10 @@ pub fn parse_args(args: &[String]) -> Result<Command, String> {
         return Ok(Command::Serve(ServeConfig {
             socket_path: option_value(args, "--socket").map(PathBuf::from),
             config_path: option_value(args, "--config").map(PathBuf::from),
-            deterministic_embeddings: args.iter().any(|arg| arg == "--test-deterministic-embeddings"),
+            deterministic_embeddings: args
+                .iter()
+                .any(|arg| arg == "--test-deterministic-embeddings"),
+            memory_vector_store: args.iter().any(|arg| arg == "--test-memory-vector-store"),
         }));
     }
 

@@ -34,5 +34,7 @@ fn print_help() {
     println!("raragd daemon");
     println!("Usage:");
     println!("  raragd [--help] [--config <path>] [--print-config]");
-    println!("  raragd serve [--config <path>] [--socket <path>] [--test-deterministic-embeddings]");
+    println!(
+        "  raragd serve [--config <path>] [--socket <path>] [--test-deterministic-embeddings] [--test-memory-vector-store]"
+    );
 }

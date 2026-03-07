@@ -3,11 +3,16 @@ use std::sync::Arc;
 
 use rarag_core::chunking::RustChunker;
 use rarag_core::config::AppConfig;
-use rarag_core::daemon::{DaemonRequest, DaemonResponse, IndexResponse, QueryPayload, StatusPayload};
-use rarag_core::embeddings::{DeterministicEmbeddingProvider, EmbeddingProvider, OpenAiCompatibleEmbeddings};
+use rarag_core::daemon::{
+    DaemonRequest, DaemonResponse, IndexResponse, QueryPayload, StatusPayload,
+};
+use rarag_core::embeddings::{
+    DeterministicEmbeddingProvider, EmbeddingProvider, OpenAiCompatibleEmbeddings,
+};
 use rarag_core::indexing::{ChunkIndexer, QdrantPointStore, TantivyChunkStore};
 use rarag_core::metadata::SnapshotStore;
 use rarag_core::retrieval::{QueryMode, RepositoryRetriever};
+use rarag_core::unix_socket::{prepare_socket_path, remove_socket_if_present};
 use tokio::net::UnixListener;
 use tokio::sync::Mutex;
 
@@ -43,7 +48,19 @@ impl DaemonState {
         }
         let metadata = SnapshotStore::open_local(&metadata_path.display().to_string()).await?;
         let tantivy = TantivyChunkStore::open(Path::new(&config.tantivy.index_root))?;
-        let qdrant = QdrantPointStore::new(&config.qdrant.collection, config.embeddings.dimensions);
+        let qdrant = if serve.memory_vector_store {
+            QdrantPointStore::new_in_memory(
+                "memory://daemon-test",
+                &config.qdrant.collection,
+                config.embeddings.dimensions,
+            )
+        } else {
+            QdrantPointStore::new(
+                &config.qdrant.endpoint,
+                &config.qdrant.collection,
+                config.embeddings.dimensions,
+            )?
+        };
         let provider = if serve.deterministic_embeddings {
             DaemonEmbeddingProvider::Deterministic(DeterministicEmbeddingProvider::new(
                 config.embeddings.dimensions,
@@ -78,7 +95,9 @@ impl DaemonState {
                 snapshot,
                 workspace_root,
                 max_body_bytes,
-            } => match self.index_workspace(snapshot, Path::new(&workspace_root), max_body_bytes).await
+            } => match self
+                .index_workspace(snapshot, Path::new(&workspace_root), max_body_bytes)
+                .await
             {
                 Ok(response) => DaemonResponse::Indexed(response),
                 Err(err) => error_response(err),
@@ -100,7 +119,8 @@ impl DaemonState {
     ) -> Result<IndexResponse, String> {
         let snapshot = self.metadata.create_or_get_snapshot(snapshot).await?;
         let chunks = RustChunker::new(max_body_bytes).chunk_workspace(workspace_root)?;
-        let indexer = ChunkIndexer::new(&self.metadata, &self.tantivy, &self.qdrant, &self.provider);
+        let indexer =
+            ChunkIndexer::new(&self.metadata, &self.tantivy, &self.qdrant, &self.provider);
         let counts = indexer.reindex_snapshot(&snapshot.id, &chunks).await?;
         Ok(IndexResponse {
             snapshot_id: snapshot.id,
@@ -157,12 +177,7 @@ pub async fn serve(config: AppConfig, serve: ServeConfig) -> Result<(), String> 
         .socket_path
         .clone()
         .unwrap_or_else(|| PathBuf::from(config.daemon_socket_path()));
-    if let Some(parent) = socket_path.parent() {
-        std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
-    }
-    if socket_path.exists() {
-        std::fs::remove_file(&socket_path).map_err(|err| err.to_string())?;
-    }
+    prepare_socket_path(&socket_path)?;
 
     let listener = UnixListener::bind(&socket_path).map_err(|err| err.to_string())?;
     let state = Arc::new(Mutex::new(DaemonState::open(&config, &serve).await?));
@@ -187,9 +202,7 @@ pub async fn serve(config: AppConfig, serve: ServeConfig) -> Result<(), String> 
         }
     }
 
-    if socket_path.exists() {
-        std::fs::remove_file(&socket_path).map_err(|err| err.to_string())?;
-    }
+    remove_socket_if_present(&socket_path)?;
     Ok(())
 }
 

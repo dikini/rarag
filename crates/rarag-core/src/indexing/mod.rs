@@ -90,7 +90,10 @@ where
         let lexical_docs = self.tantivy.index_chunks(snapshot_id, chunks)?;
         let texts: Vec<String> = chunks.iter().map(|chunk| chunk.text.clone()).collect();
         let vectors = self.provider.embed_texts(&texts)?;
-        let vector_points = self.qdrant.prepare_points(snapshot_id, chunks, vectors)?;
+        let vector_points = self
+            .qdrant
+            .replace_snapshot(snapshot_id, chunks, vectors)
+            .await?;
         let metadata_rows = self.metadata.chunk_count(snapshot_id).await?;
 
         Ok(ReindexCounts {

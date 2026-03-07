@@ -22,7 +22,11 @@ fn main() {
         return;
     }
 
-    match cli::parse_command(&args, config.daemon_socket_path(), config.cli_default_json()) {
+    match cli::parse_command(
+        &args,
+        config.daemon_socket_path(),
+        config.cli_default_json(),
+    ) {
         Ok(command) => {
             if command.dry_run {
                 println!(
@@ -61,10 +65,18 @@ fn print_help() {
     println!("rarag cli");
     println!("Usage:");
     println!("  rarag [--help] [--config <path>] [--print-config]");
-    println!("  rarag status [--socket <path>] [--snapshot-id <id> | --worktree-root <path>] [--json]");
-    println!("  rarag index --workspace-root <path> --repo-root <path> --worktree-root <path> --git-sha <sha> [--cargo-target <triple>] [--feature <csv>] [--cfg-profile <profile>] [--max-body-bytes <n>] [--socket <path>] [--json]");
-    println!("  rarag query --mode <mode> --phase <phase> --text <query> [--symbol-path <path>] [--snapshot-id <id> | --worktree-root <path>] [--changed-path <path>]... [--limit <n>] [--socket <path>] [--json] [--dry-run-request]");
-    println!("  rarag blast-radius --phase <phase> --text <query> [--symbol-path <path>] [--snapshot-id <id> | --worktree-root <path>] [--changed-path <path>]... [--limit <n>] [--socket <path>] [--json] [--dry-run-request]");
+    println!(
+        "  rarag status [--socket <path>] [--snapshot-id <id> | --worktree-root <path>] [--json]"
+    );
+    println!(
+        "  rarag index --workspace-root <path> --repo-root <path> --worktree-root <path> --git-sha <sha> [--cargo-target <triple>] [--feature <csv>] [--cfg-profile <profile>] [--max-body-bytes <n>] [--socket <path>] [--json]"
+    );
+    println!(
+        "  rarag query --mode <mode> --phase <phase> --text <query> [--symbol-path <path>] [--snapshot-id <id> | --worktree-root <path>] [--changed-path <path>]... [--limit <n>] [--socket <path>] [--json] [--dry-run-request]"
+    );
+    println!(
+        "  rarag blast-radius --phase <phase> --text <query> [--symbol-path <path>] [--snapshot-id <id> | --worktree-root <path>] [--changed-path <path>]... [--limit <n>] [--socket <path>] [--json] [--dry-run-request]"
+    );
 }
 
 fn print_human(response: &rarag_core::daemon::DaemonResponse) {

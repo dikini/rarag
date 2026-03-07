@@ -81,6 +81,7 @@ List deterministic commands used by local and CI verification.
 - `scripts/check-fast-feedback.sh`
 - `scripts/check-tests.sh`
 - `scripts/check-merge-result.sh`
+- `scripts/check-live-rag-stack.sh` (opt-in: requires live OpenAI and Qdrant env)
 
 ## Documentation
 

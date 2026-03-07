@@ -4,17 +4,13 @@ use std::path::{Path, PathBuf};
 
 use rarag_core::daemon::{DaemonRequest, QueryPayload};
 use rarag_core::retrieval::{QueryMode, WorkflowPhase};
+use rarag_core::unix_socket::prepare_socket_path;
 use serde_json::Value;
 
 use crate::tools::{McpRequest, McpResponse, tool_definitions};
 
 pub fn serve(socket_path: &Path, daemon_socket: &Path) -> Result<(), String> {
-    if let Some(parent) = socket_path.parent() {
-        std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
-    }
-    if socket_path.exists() {
-        std::fs::remove_file(socket_path).map_err(|err| err.to_string())?;
-    }
+    prepare_socket_path(socket_path)?;
     let listener = UnixListener::bind(socket_path).map_err(|err| err.to_string())?;
 
     for stream in listener.incoming() {
@@ -151,7 +147,10 @@ fn value_array_strings(arguments: &Value, key: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-fn send_daemon_request(socket_path: &Path, request: &DaemonRequest) -> Result<rarag_core::daemon::DaemonResponse, String> {
+fn send_daemon_request(
+    socket_path: &Path,
+    request: &DaemonRequest,
+) -> Result<rarag_core::daemon::DaemonResponse, String> {
     let mut stream = UnixStream::connect(socket_path).map_err(|err| err.to_string())?;
     let body = serde_json::to_vec(request).map_err(|err| err.to_string())?;
     stream.write_all(&body).map_err(|err| err.to_string())?;
@@ -159,13 +158,17 @@ fn send_daemon_request(socket_path: &Path, request: &DaemonRequest) -> Result<ra
         .shutdown(std::net::Shutdown::Write)
         .map_err(|err| err.to_string())?;
     let mut response = Vec::new();
-    stream.read_to_end(&mut response).map_err(|err| err.to_string())?;
+    stream
+        .read_to_end(&mut response)
+        .map_err(|err| err.to_string())?;
     serde_json::from_slice(&response).map_err(|err| err.to_string())
 }
 
 fn read_request(stream: &mut UnixStream) -> Result<McpRequest, String> {
     let mut body = Vec::new();
-    stream.read_to_end(&mut body).map_err(|err| err.to_string())?;
+    stream
+        .read_to_end(&mut body)
+        .map_err(|err| err.to_string())?;
     serde_json::from_slice(&body).map_err(|err| err.to_string())
 }
 

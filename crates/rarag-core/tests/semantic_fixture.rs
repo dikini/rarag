@@ -68,7 +68,7 @@ async fn build_retriever() -> (
         .await
         .expect("create snapshot");
     let tantivy = TantivyChunkStore::open(&tantivy_dir).expect("open tantivy");
-    let qdrant = QdrantPointStore::new("rarag_chunks", 4);
+    let qdrant = QdrantPointStore::new_in_memory("memory://tests", "rarag_chunks", 4);
     let provider = StaticEmbeddingProvider { dimensions: 4 };
     let indexer = ChunkIndexer::new(&metadata, &tantivy, &qdrant, &provider);
     let chunks = RustChunker::new(80)
@@ -83,7 +83,15 @@ async fn build_retriever() -> (
         .await
         .expect("reindex snapshot");
 
-    (snapshot.id, dir, fixture_root(), metadata, tantivy, qdrant, provider)
+    (
+        snapshot.id,
+        dir,
+        fixture_root(),
+        metadata,
+        tantivy,
+        qdrant,
+        provider,
+    )
 }
 
 #[test]

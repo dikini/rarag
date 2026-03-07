@@ -12,7 +12,11 @@ pub struct CliCommand {
     pub dry_run: bool,
 }
 
-pub fn parse_command(args: &[String], default_socket: &str, default_json: bool) -> Result<CliCommand, String> {
+pub fn parse_command(
+    args: &[String],
+    default_socket: &str,
+    default_json: bool,
+) -> Result<CliCommand, String> {
     let socket_path = option_value(args, "--socket")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(default_socket));
@@ -85,7 +89,11 @@ fn parse_query_payload(args: &[String], force_blast_radius: bool) -> Result<Quer
         query_text: required_option(args, "--text")?,
         symbol_path: option_value(args, "--symbol-path"),
         limit: option_value(args, "--limit")
-            .map(|value| value.parse().map_err(|err| format!("invalid --limit: {err}")))
+            .map(|value| {
+                value
+                    .parse()
+                    .map_err(|err| format!("invalid --limit: {err}"))
+            })
             .transpose()?,
         changed_paths: repeated_values(args, "--changed-path"),
     })

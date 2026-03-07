@@ -108,3 +108,48 @@ fn create_and_load_snapshot() {
         })
     });
 }
+
+#[test]
+fn resolves_latest_snapshot_for_worktree_root() {
+    with_runtime(|runtime| {
+        runtime.block_on(async {
+            let dir = tempdir().expect("tempdir");
+            let store = SnapshotStore::open_local(&db_path(dir.path()))
+                .await
+                .expect("open local db");
+
+            let first = store
+                .create_or_get_snapshot(SnapshotKey::new(
+                    "/repo",
+                    "/repo/.worktrees/alpha",
+                    "abc123",
+                    "x86_64-unknown-linux-gnu",
+                    ["default"],
+                    "dev",
+                ))
+                .await
+                .expect("create first snapshot");
+            let second = store
+                .create_or_get_snapshot(SnapshotKey::new(
+                    "/repo",
+                    "/repo/.worktrees/alpha",
+                    "def456",
+                    "x86_64-unknown-linux-gnu",
+                    ["default"],
+                    "dev",
+                ))
+                .await
+                .expect("create second snapshot");
+
+            let resolved = store
+                .resolve_snapshot_for_worktree_root("/repo/.worktrees/alpha")
+                .await
+                .expect("resolve snapshot")
+                .expect("snapshot exists");
+
+            assert_eq!(resolved.id, second.id);
+            assert_ne!(resolved.id, first.id);
+            assert_eq!(resolved.key.git_sha, "def456");
+        })
+    });
+}

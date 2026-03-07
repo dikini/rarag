@@ -51,7 +51,13 @@ fn resolve_config_path(explicit_path: Option<&Path>) -> Option<PathBuf> {
 fn apply_overrides(config: &mut AppConfig, overrides: PartialAppConfig) {
     if let Some(runtime) = overrides.runtime {
         if let Some(socket_path) = runtime.socket_path {
-            config.runtime.socket_path = socket_path;
+            config.runtime.socket_path = socket_path.clone();
+            config.daemon = Some(DaemonConfig {
+                socket_path: socket_path.clone(),
+            });
+            config.mcp = Some(McpConfig {
+                socket_path: derive_companion_mcp_socket(&socket_path),
+            });
         }
         if let Some(state_root) = runtime.state_root {
             config.runtime.state_root = state_root;
@@ -192,4 +198,11 @@ struct PartialDaemonConfig {
 #[derive(Debug, Deserialize, Default)]
 struct PartialMcpConfig {
     socket_path: Option<String>,
+}
+
+fn derive_companion_mcp_socket(socket_path: &str) -> String {
+    if let Some(prefix) = socket_path.strip_suffix(".sock") {
+        return format!("{prefix}-mcp.sock");
+    }
+    format!("{socket_path}-mcp")
 }

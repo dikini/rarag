@@ -48,8 +48,18 @@ impl Default for AppConfig {
                 dimensions: 1_536,
             },
             cli: None,
-            daemon: None,
-            mcp: None,
+            daemon: Some(DaemonConfig {
+                socket_path: format!(
+                    "{runtime_dir}/rarag/{}",
+                    crate::workspace::default_socket_name()
+                ),
+            }),
+            mcp: Some(McpConfig {
+                socket_path: format!(
+                    "{runtime_dir}/rarag/{}",
+                    crate::workspace::default_mcp_socket_name()
+                ),
+            }),
         }
     }
 }

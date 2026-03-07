@@ -16,7 +16,10 @@ pub async fn write_response(
     response: &DaemonResponse,
 ) -> Result<(), String> {
     let body = serde_json::to_vec(response).map_err(|err| err.to_string())?;
-    stream.write_all(&body).await.map_err(|err| err.to_string())?;
+    stream
+        .write_all(&body)
+        .await
+        .map_err(|err| err.to_string())?;
     stream.shutdown().await.map_err(|err| err.to_string())
 }
 

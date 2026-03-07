@@ -96,7 +96,7 @@ socket_path = "/tmp/rarag-daemon.sock"
 }
 
 #[test]
-fn mcp_and_daemon_share_socket_override_semantics() {
+fn mcp_and_daemon_use_distinct_default_sockets() {
     let _guard = env_lock()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -107,7 +107,7 @@ fn mcp_and_daemon_share_socket_override_semantics() {
         &config_path,
         r#"
 [runtime]
-socket_path = "/tmp/shared-runtime.sock"
+socket_path = "/tmp/raragd.sock"
 "#,
     )
     .expect("write config");
@@ -132,11 +132,11 @@ socket_path = "/tmp/shared-runtime.sock"
     );
 
     assert!(
-        daemon_stdout.contains("socket_path=/tmp/shared-runtime.sock"),
+        daemon_stdout.contains("socket_path=/tmp/raragd.sock"),
         "stdout was: {daemon_stdout}"
     );
     assert!(
-        mcp_stdout.contains("socket_path=/tmp/shared-runtime.sock"),
+        mcp_stdout.contains("socket_path=/tmp/raragd-mcp.sock"),
         "stdout was: {mcp_stdout}"
     );
 }

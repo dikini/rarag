@@ -60,7 +60,7 @@ where
             Vec::new()
         };
 
-        let semantic_hits = self.semantic_candidates(&request)?;
+        let semantic_hits = self.semantic_candidates(&request).await?;
         if semantic_hits.is_empty() {
             warnings
                 .push("semantic vector search returned no snapshot-local candidates".to_string());
@@ -101,7 +101,7 @@ where
         Ok(RetrievalResponse { items, warnings })
     }
 
-    fn semantic_candidates(
+    async fn semantic_candidates(
         &self,
         request: &RetrievalRequest,
     ) -> Result<Vec<crate::indexing::VectorSearchHit>, String> {
@@ -112,10 +112,12 @@ where
             .into_iter()
             .next()
             .ok_or_else(|| "embedding provider returned no query vector".to_string())?;
-        self.qdrant.search_snapshot(
-            &request.snapshot_id,
-            &query_vector,
-            request.effective_limit(),
-        )
+        self.qdrant
+            .search_snapshot(
+                &request.snapshot_id,
+                &query_vector,
+                request.effective_limit(),
+            )
+            .await
     }
 }

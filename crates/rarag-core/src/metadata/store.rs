@@ -95,23 +95,15 @@ impl SnapshotStore {
         let mut rows = self
             .connection
             .query(
-                "SELECT snapshot_id FROM snapshots WHERE worktree_root = ?1 ORDER BY created_at DESC, snapshot_id DESC LIMIT 2",
+                "SELECT snapshot_id FROM snapshots WHERE worktree_root = ?1 ORDER BY created_at DESC, snapshot_id DESC LIMIT 1",
                 [worktree_root],
             )
             .await
             .map_err(|err| err.to_string())?;
 
-        let mut ids = Vec::new();
-        while let Some(row) = rows.next().await.map_err(|err| err.to_string())? {
-            ids.push(text_at(&row, 0)?);
-        }
-
-        match ids.len() {
-            0 => Ok(None),
-            1 => self.load_snapshot(&ids[0]).await,
-            _ => Err(format!(
-                "multiple snapshots matched worktree_root {worktree_root}"
-            )),
+        match rows.next().await.map_err(|err| err.to_string())? {
+            Some(row) => self.load_snapshot(&text_at(&row, 0)?).await,
+            None => Ok(None),
         }
     }
 

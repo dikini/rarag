@@ -65,7 +65,7 @@ async fn build_retriever() -> (
         .await
         .expect("create snapshot");
     let tantivy = TantivyChunkStore::open(&tantivy_dir).expect("open tantivy");
-    let qdrant = QdrantPointStore::new("rarag_chunks", 4);
+    let qdrant = QdrantPointStore::new_in_memory("memory://tests", "rarag_chunks", 4);
     let provider = StaticEmbeddingProvider { dimensions: 4 };
     let indexer = ChunkIndexer::new(&metadata, &tantivy, &qdrant, &provider);
     let chunks = RustChunker::new(80)
@@ -162,7 +162,7 @@ fn results_never_cross_snapshot_boundary() {
             .await
             .expect("create snapshot b");
         let tantivy = TantivyChunkStore::open(&tantivy_dir).expect("open tantivy");
-        let qdrant = QdrantPointStore::new("rarag_chunks", 4);
+        let qdrant = QdrantPointStore::new_in_memory("memory://tests", "rarag_chunks", 4);
         let provider = StaticEmbeddingProvider { dimensions: 4 };
         let indexer = ChunkIndexer::new(&metadata, &tantivy, &qdrant, &provider);
         let chunks = RustChunker::new(80)

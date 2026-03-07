@@ -28,4 +28,4 @@ default_json = false
 socket_path = "/run/user/1000/rarag/raragd.sock"
 
 [mcp]
-socket_path = "/run/user/1000/rarag/raragd.sock"
+socket_path = "/run/user/1000/rarag/rarag-mcp.sock"
