@@ -233,3 +233,28 @@ fn bounded_refactor_returns_tests_and_references() {
         }));
     });
 }
+
+#[test]
+fn falls_back_to_lexical_bm25_when_symbol_path_is_missing() {
+    runtime().block_on(async {
+        let (snapshot_id, _dir, metadata, tantivy, qdrant, provider) = build_retriever().await;
+        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &qdrant, &provider);
+        let response = retriever
+            .retrieve(
+                RetrievalRequest::new(
+                    snapshot_id,
+                    QueryMode::FindExamples,
+                    WorkflowPhase::Plan,
+                    "oversized_example",
+                )
+                .with_limit(6),
+            )
+            .await
+            .expect("retrieve");
+
+        assert!(response.items.iter().any(|item| {
+            item.chunk.symbol_path.as_deref() == Some("mini_repo::oversized_example")
+                && item.evidence.iter().any(|entry| entry == "lexical_bm25")
+        }));
+    });
+}

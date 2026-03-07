@@ -1,9 +1,12 @@
 use std::os::unix::fs::FileTypeExt;
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
 pub fn prepare_socket_path(socket_path: &Path) -> Result<(), String> {
     if let Some(parent) = socket_path.parent() {
         std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+        std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))
+            .map_err(|err| err.to_string())?;
     }
 
     if !socket_path.exists() {
@@ -41,6 +44,7 @@ pub fn remove_socket_if_present(socket_path: &Path) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    use std::os::unix::fs::PermissionsExt;
     use std::os::unix::net::UnixListener;
 
     use tempfile::tempdir;
@@ -80,5 +84,20 @@ mod tests {
 
         assert!(err.contains("refusing to remove non-socket path"));
         assert!(file_path.exists());
+    }
+
+    #[test]
+    fn parent_directory_is_locked_down() {
+        let dir = tempdir().expect("tempdir");
+        let socket_path = dir.path().join("runtime/rarag.sock");
+
+        prepare_socket_path(&socket_path).expect("prepare socket path");
+
+        let mode = std::fs::metadata(socket_path.parent().expect("parent"))
+            .expect("runtime metadata")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o700);
     }
 }

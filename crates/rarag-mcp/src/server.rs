@@ -44,11 +44,11 @@ fn handle_request(request: McpRequest, daemon_socket: &Path) -> McpResponse {
 
 fn map_tool_call(name: &str, arguments: Value) -> Result<DaemonRequest, String> {
     match name {
-        "status" => Ok(DaemonRequest::Status {
+        "status" | "rag_index_status" => Ok(DaemonRequest::Status {
             snapshot_id: value_string(&arguments, "snapshot_id"),
             worktree_root: value_string(&arguments, "worktree_root"),
         }),
-        "index_workspace" => Ok(DaemonRequest::IndexWorkspace {
+        "index_workspace" | "rag_reindex" => Ok(DaemonRequest::IndexWorkspace {
             snapshot: rarag_core::snapshot::SnapshotKey::new(
                 required_value(&arguments, "repo_root")?,
                 required_value(&arguments, "worktree_root")?,
@@ -70,10 +70,12 @@ fn map_tool_call(name: &str, arguments: Value) -> Result<DaemonRequest, String> 
                 .parse()
                 .map_err(|err| format!("invalid max_body_bytes: {err}"))?,
         }),
-        "query_context" | "find_examples" | "blast_radius" => {
+        "query_context" | "find_examples" | "blast_radius" | "rag_query" | "rag_symbol_context"
+        | "rag_examples" | "rag_blast_radius" => {
             let query_mode = match name {
-                "find_examples" => QueryMode::FindExamples,
-                "blast_radius" => QueryMode::BlastRadius,
+                "find_examples" | "rag_examples" => QueryMode::FindExamples,
+                "blast_radius" | "rag_blast_radius" => QueryMode::BlastRadius,
+                "rag_symbol_context" => QueryMode::UnderstandSymbol,
                 _ => parse_query_mode(&required_value(&arguments, "mode")?)?,
             };
             let payload = QueryPayload {
@@ -88,7 +90,7 @@ fn map_tool_call(name: &str, arguments: Value) -> Result<DaemonRequest, String> 
                     .transpose()?,
                 changed_paths: value_array_strings(&arguments, "changed_paths"),
             };
-            if name == "blast_radius" {
+            if matches!(name, "blast_radius" | "rag_blast_radius") {
                 Ok(DaemonRequest::BlastRadius(payload))
             } else {
                 Ok(DaemonRequest::Query(payload))
@@ -113,8 +115,8 @@ fn parse_workflow_phase(value: &str) -> Result<WorkflowPhase, String> {
     match value {
         "spec" => Ok(WorkflowPhase::Spec),
         "plan" => Ok(WorkflowPhase::Plan),
-        "write-tests" => Ok(WorkflowPhase::WriteTests),
-        "write-code" => Ok(WorkflowPhase::WriteCode),
+        "write-tests" | "tests" => Ok(WorkflowPhase::WriteTests),
+        "write-code" | "code" => Ok(WorkflowPhase::WriteCode),
         "verify" => Ok(WorkflowPhase::Verify),
         "review" => Ok(WorkflowPhase::Review),
         "fix" => Ok(WorkflowPhase::Fix),

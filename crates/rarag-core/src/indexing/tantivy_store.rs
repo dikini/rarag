@@ -3,16 +3,17 @@ use std::path::Path;
 use tantivy::collector::TopDocs;
 use tantivy::directory::MmapDirectory;
 use tantivy::doc;
-use tantivy::query::TermQuery;
+use tantivy::query::{QueryParser, TermQuery};
 use tantivy::schema::{IndexRecordOption, STORED, STRING, Schema, TEXT, Value};
 use tantivy::{Index, IndexReader, ReloadPolicy, TantivyDocument, Term};
 
 use crate::chunking::{Chunk, ChunkKind};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct IndexedDocument {
     pub chunk_id: String,
     pub symbol_path: Option<String>,
+    pub score: f32,
 }
 
 pub struct TantivyChunkStore {
@@ -105,6 +106,53 @@ impl TantivyChunkStore {
         self.search_exact_symbol_in_snapshot(Some(snapshot_id), symbol, limit)
     }
 
+    pub fn search_text_for_snapshot(
+        &self,
+        snapshot_id: &str,
+        query_text: &str,
+        limit: usize,
+    ) -> Result<Vec<IndexedDocument>, String> {
+        let parser = QueryParser::for_index(
+            &self.index,
+            vec![self.text, self.symbol_path, self.file_path, self.kind],
+        );
+        let query = parser
+            .parse_query(query_text)
+            .map_err(|err| err.to_string())?;
+        let searcher = self.reader.searcher();
+        let docs = searcher
+            .search(&query, &TopDocs::with_limit(limit))
+            .map_err(|err| err.to_string())?;
+
+        docs.into_iter()
+            .map(|(score, address)| {
+                let document: TantivyDocument =
+                    searcher.doc(address).map_err(|err| err.to_string())?;
+                let document_snapshot_id = document
+                    .get_first(self.snapshot_id)
+                    .and_then(|value| value.as_str())
+                    .unwrap_or_default();
+                if document_snapshot_id != snapshot_id {
+                    return Ok(None);
+                }
+
+                Ok(Some(IndexedDocument {
+                    chunk_id: document
+                        .get_first(self.chunk_id)
+                        .and_then(|value| value.as_str())
+                        .unwrap_or_default()
+                        .to_string(),
+                    symbol_path: document
+                        .get_first(self.symbol_path)
+                        .and_then(|value| value.as_str())
+                        .map(ToString::to_string),
+                    score,
+                }))
+            })
+            .filter_map(Result::transpose)
+            .collect()
+    }
+
     fn search_exact_symbol_in_snapshot(
         &self,
         snapshot_id: Option<&str>,
@@ -140,6 +188,7 @@ impl TantivyChunkStore {
                         .get_first(self.symbol_path)
                         .and_then(|value| value.as_str())
                         .map(ToString::to_string),
+                    score: 1.0,
                 }))
             })
             .filter_map(Result::transpose)

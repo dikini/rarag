@@ -2317,6 +2317,7 @@ dependencies = [
  "qdrant-client",
  "ra_ap_syntax",
  "reqwest",
+ "rustix 0.38.44",
  "serde",
  "serde_json",
  "tantivy",

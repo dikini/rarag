@@ -1,4 +1,7 @@
 use std::env;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
@@ -19,13 +22,13 @@ pub struct AppConfig {
 
 impl Default for AppConfig {
     fn default() -> Self {
-        let runtime_dir = xdg_runtime_dir();
+        let runtime_root = runtime_socket_root();
         let state_root = xdg_state_root();
         let cache_root = xdg_cache_root();
 
         Self {
             runtime: RuntimePaths::new(
-                format!("{runtime_dir}/rarag/raragd.sock"),
+                format!("{runtime_root}/{}", crate::workspace::default_socket_name()),
                 format!("{state_root}/rarag"),
                 format!("{cache_root}/rarag"),
             ),
@@ -49,14 +52,11 @@ impl Default for AppConfig {
             },
             cli: None,
             daemon: Some(DaemonConfig {
-                socket_path: format!(
-                    "{runtime_dir}/rarag/{}",
-                    crate::workspace::default_socket_name()
-                ),
+                socket_path: format!("{runtime_root}/{}", crate::workspace::default_socket_name()),
             }),
             mcp: Some(McpConfig {
                 socket_path: format!(
-                    "{runtime_dir}/rarag/{}",
+                    "{runtime_root}/{}",
                     crate::workspace::default_mcp_socket_name()
                 ),
             }),
@@ -149,15 +149,21 @@ pub struct McpConfig {
     pub socket_path: String,
 }
 
-fn xdg_runtime_dir() -> String {
-    env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_string())
+fn runtime_socket_root() -> String {
+    if let Ok(runtime_dir) = env::var("XDG_RUNTIME_DIR") {
+        return format!("{runtime_dir}/rarag");
+    }
+
+    let fallback = PathBuf::from(xdg_state_root()).join("rarag/run");
+    ensure_private_runtime_root(&fallback);
+    fallback.display().to_string()
 }
 
 fn xdg_state_root() -> String {
     env::var("XDG_STATE_HOME").unwrap_or_else(|_| {
         env::var("HOME")
             .map(|home| format!("{home}/.local/state"))
-            .unwrap_or_else(|_| "/tmp".to_string())
+            .unwrap_or_else(|_| fallback_user_tmp_root("state"))
     })
 }
 
@@ -165,8 +171,27 @@ fn xdg_cache_root() -> String {
     env::var("XDG_CACHE_HOME").unwrap_or_else(|_| {
         env::var("HOME")
             .map(|home| format!("{home}/.cache"))
-            .unwrap_or_else(|_| "/tmp".to_string())
+            .unwrap_or_else(|_| fallback_user_tmp_root("cache"))
     })
+}
+
+fn fallback_user_tmp_root(kind: &str) -> String {
+    #[cfg(unix)]
+    let uid = rustix::process::getuid().as_raw();
+    #[cfg(not(unix))]
+    let uid = 0;
+    format!("/tmp/rarag-uid-{uid}/{kind}")
+}
+
+fn ensure_private_runtime_root(path: &PathBuf) {
+    if std::fs::create_dir_all(path).is_err() {
+        return;
+    }
+
+    #[cfg(unix)]
+    {
+        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700));
+    }
 }
 
 impl EmbeddingProviderConfig {
