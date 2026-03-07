@@ -9,22 +9,22 @@ use neighborhood::assemble_neighborhood;
 pub use query::{QueryMode, RetrievalRequest, RetrievalResponse, RetrievedChunk, WorkflowPhase};
 use rerank::{Candidate, rerank_candidates};
 
-pub struct RepositoryRetriever<P> {
-    metadata: SnapshotStore,
-    tantivy: TantivyChunkStore,
-    qdrant: QdrantPointStore,
-    provider: P,
+pub struct RepositoryRetriever<'a, P> {
+    metadata: &'a SnapshotStore,
+    tantivy: &'a TantivyChunkStore,
+    qdrant: &'a QdrantPointStore,
+    provider: &'a P,
 }
 
-impl<P> RepositoryRetriever<P>
+impl<'a, P> RepositoryRetriever<'a, P>
 where
     P: EmbeddingProvider,
 {
     pub fn new(
-        metadata: SnapshotStore,
-        tantivy: TantivyChunkStore,
-        qdrant: QdrantPointStore,
-        provider: P,
+        metadata: &'a SnapshotStore,
+        tantivy: &'a TantivyChunkStore,
+        qdrant: &'a QdrantPointStore,
+        provider: &'a P,
     ) -> Self {
         Self {
             metadata,
