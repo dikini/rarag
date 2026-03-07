@@ -16,6 +16,7 @@ The format is based on Common Changelog:
 - Added the first `ra_ap_syntax` structural chunker with workspace fixture coverage for symbols, tests, and oversized body-region splits.
 - Added Tantivy indexing, prepared Qdrant point ingestion, and an OpenAI-compatible embedding request builder tied together through snapshot reindexing.
 - Added workflow-aware retrieval modes with bounded neighborhood assembly, ranking evidence, and snapshot-local hybrid lookup.
+- Added a checked-in OpenAI-compatible example config that references environment variables instead of secrets.
 
 ### Changed
 

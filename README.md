@@ -52,6 +52,14 @@ cargo build --workspace
 scripts/check-tests.sh
 ```
 
+## Example Config
+
+- Example local config: `examples/rarag.openai.example.json`
+- The checked-in example references environment variables only.
+- Keep secrets outside the repo, for example in `~/.config/sharo/daemon.env`.
+- For OpenAI embeddings, the documented default is:
+  `base_url = "https://api.openai.com/v1"` and `endpoint_path = "/embeddings"`
+
 ## Development Workflow
 
 Document the mandatory feedback loop and pre-commit expectations.
