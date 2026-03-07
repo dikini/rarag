@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+if ! scripts/check-fast-feedback-marker.sh; then
+  echo "pre-commit: refreshing fast-feedback marker" >&2
+  scripts/check-fast-feedback.sh
+  scripts/check-fast-feedback-marker.sh
+fi
+scripts/check-changelog-staged.sh
+scripts/check-rust-policy.sh
+scripts/check-rust-tests.sh --changed
+scripts/check-sync-manifest.sh --changed
+scripts/doc-lint.sh --changed --strict-new
+scripts/check-doc-terms.sh --changed
+scripts/check-tasks-registry.sh
+scripts/check-tasks-sync.sh --changed

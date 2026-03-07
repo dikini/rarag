@@ -1,0 +1,19 @@
+version: 0.0.1
+project:
+  name: rarag
+  slug: rarag
+  owner: dikini
+  team: dikini
+  license: GPL-3.0-or-later
+runtime:
+  languages:
+    - bash
+    - rust
+  toolchains:
+    bash: "5.x+"
+    rust: "1.93+ (edition 2024)"
+security:
+  contact: security@example.com
+workflow:
+  changelog_required: true
+  conventional_commits_required: true
