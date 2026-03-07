@@ -67,7 +67,8 @@ fn maps_chunk_to_tantivy_document() {
 #[test]
 fn builds_openai_compatible_embedding_request() {
     let provider = OpenAiCompatibleEmbeddings::new(
-        "https://embeddings.example.invalid",
+        "https://api.openai.com/v1",
+        "/embeddings",
         "text-embedding-3-small",
         "EMBEDDING_API_KEY",
         1_536,
@@ -83,10 +84,34 @@ fn builds_openai_compatible_embedding_request() {
 
     assert_eq!(
         request.url().as_str(),
-        "https://embeddings.example.invalid/embeddings"
+        "https://api.openai.com/v1/embeddings"
     );
     assert_eq!(request.method().as_str(), "POST");
     assert!(request.headers().contains_key("authorization"));
+}
+
+#[test]
+fn supports_configurable_embedding_endpoint_path() {
+    let provider = OpenAiCompatibleEmbeddings::new(
+        "https://proxy.example.invalid/openai",
+        "v1/embeddings",
+        "text-embedding-3-small",
+        "EMBEDDING_API_KEY",
+        1_536,
+    )
+    .expect("provider config");
+
+    unsafe {
+        std::env::set_var("EMBEDDING_API_KEY", "test-token");
+    }
+    let request = provider
+        .build_request(&["alpha".to_string()])
+        .expect("build request");
+
+    assert_eq!(
+        request.url().as_str(),
+        "https://proxy.example.invalid/openai/v1/embeddings"
+    );
 }
 
 #[test]

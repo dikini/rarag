@@ -22,8 +22,9 @@ fn sample_config() -> AppConfig {
             collection: "rarag_chunks".into(),
         },
         embeddings: EmbeddingProviderConfig {
-            base_url: "https://embeddings.example.invalid".into(),
-            model: "text-embedding-test".into(),
+            base_url: "https://api.openai.com/v1".into(),
+            endpoint_path: "/embeddings".into(),
+            model: "text-embedding-3-small".into(),
             api_key_env: "EMBEDDING_API_KEY".into(),
             dimensions: 1_536,
         },
@@ -46,7 +47,8 @@ fn parses_runtime_paths() {
 fn rejects_incomplete_embedding_config() {
     let err = EmbeddingProviderConfig {
         base_url: String::new(),
-        model: "text-embedding-test".into(),
+        endpoint_path: String::new(),
+        model: "text-embedding-3-small".into(),
         api_key_env: String::new(),
         dimensions: 0,
     }
@@ -54,6 +56,7 @@ fn rejects_incomplete_embedding_config() {
     .expect_err("embedding config should fail validation");
 
     assert!(err.contains("base_url"), "unexpected error: {err}");
+    assert!(err.contains("endpoint_path"), "unexpected error: {err}");
     assert!(err.contains("api_key_env"), "unexpected error: {err}");
     assert!(err.contains("dimensions"), "unexpected error: {err}");
 }

@@ -20,6 +20,7 @@ The format is based on Common Changelog:
 ### Changed
 
 - Initialized required project docs by resolving startup placeholders in `README.md` and `AGENTS.md`, and aligned security reporting guidance with repository issue-based intake.
+- Made the OpenAI-compatible embedding client configurable for provider base URLs and endpoint paths, with the OpenAI default target aligned to `/v1/embeddings`.
 
 ### Fixed
 

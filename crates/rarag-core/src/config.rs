@@ -50,6 +50,7 @@ pub struct QdrantConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EmbeddingProviderConfig {
     pub base_url: String,
+    pub endpoint_path: String,
     pub model: String,
     pub api_key_env: String,
     pub dimensions: usize,
@@ -61,6 +62,9 @@ impl EmbeddingProviderConfig {
 
         if self.base_url.trim().is_empty() {
             missing.push("base_url");
+        }
+        if self.endpoint_path.trim().is_empty() {
+            missing.push("endpoint_path");
         }
         if self.model.trim().is_empty() {
             missing.push("model");
@@ -100,6 +104,7 @@ mod tests {
     fn validate_rejects_missing_required_fields() {
         let err = EmbeddingProviderConfig {
             base_url: String::new(),
+            endpoint_path: String::new(),
             model: String::new(),
             api_key_env: String::new(),
             dimensions: 0,
@@ -108,6 +113,7 @@ mod tests {
         .expect_err("config should fail validation");
 
         assert!(err.contains("base_url"));
+        assert!(err.contains("endpoint_path"));
         assert!(err.contains("model"));
         assert!(err.contains("api_key_env"));
         assert!(err.contains("dimensions"));

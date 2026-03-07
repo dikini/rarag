@@ -1,6 +1,8 @@
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 
+use crate::config::EmbeddingProviderConfig;
+
 pub trait EmbeddingProvider {
     fn embed_texts(&self, inputs: &[String]) -> Result<Vec<Vec<f32>>, String>;
 }
@@ -8,6 +10,7 @@ pub trait EmbeddingProvider {
 #[derive(Debug, Clone)]
 pub struct OpenAiCompatibleEmbeddings {
     base_url: String,
+    endpoint_path: String,
     model: String,
     api_key_env: String,
     dimensions: usize,
@@ -17,12 +20,14 @@ pub struct OpenAiCompatibleEmbeddings {
 impl OpenAiCompatibleEmbeddings {
     pub fn new(
         base_url: impl Into<String>,
+        endpoint_path: impl Into<String>,
         model: impl Into<String>,
         api_key_env: impl Into<String>,
         dimensions: usize,
     ) -> Result<Self, String> {
         let provider = Self {
             base_url: base_url.into().trim_end_matches('/').to_string(),
+            endpoint_path: normalize_endpoint_path(endpoint_path.into()),
             model: model.into(),
             api_key_env: api_key_env.into(),
             dimensions,
@@ -31,6 +36,9 @@ impl OpenAiCompatibleEmbeddings {
 
         if provider.base_url.is_empty() {
             return Err("base_url must not be empty".to_string());
+        }
+        if provider.endpoint_path.is_empty() {
+            return Err("endpoint_path must not be empty".to_string());
         }
         if provider.model.trim().is_empty() {
             return Err("model must not be empty".to_string());
@@ -45,12 +53,23 @@ impl OpenAiCompatibleEmbeddings {
         Ok(provider)
     }
 
+    pub fn from_config(config: &EmbeddingProviderConfig) -> Result<Self, String> {
+        config.validate()?;
+        Self::new(
+            config.base_url.clone(),
+            config.endpoint_path.clone(),
+            config.model.clone(),
+            config.api_key_env.clone(),
+            config.dimensions,
+        )
+    }
+
     pub fn build_request(&self, inputs: &[String]) -> Result<reqwest::Request, String> {
         let token = std::env::var(&self.api_key_env)
             .map_err(|_| format!("missing environment variable {}", self.api_key_env))?;
 
         self.client
-            .post(format!("{}/embeddings", self.base_url))
+            .post(format!("{}{}", self.base_url, self.endpoint_path))
             .header(AUTHORIZATION, format!("Bearer {token}"))
             .header(CONTENT_TYPE, "application/json")
             .json(&OpenAiCompatibleEmbeddingRequest {
@@ -115,4 +134,15 @@ async fn fetch_embeddings(
         .into_iter()
         .map(|item| item.embedding)
         .collect())
+}
+
+fn normalize_endpoint_path(endpoint_path: String) -> String {
+    let trimmed = endpoint_path.trim();
+    if trimmed.is_empty() {
+        String::new()
+    } else if trimmed.starts_with('/') {
+        trimmed.to_string()
+    } else {
+        format!("/{trimmed}")
+    }
 }
