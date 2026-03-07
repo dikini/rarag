@@ -46,6 +46,8 @@ Define the canonical architecture for a Rust-first repository assistance RAG sys
 
 The system is not a generic question-answering assistant. It is a repository memory and retrieval system for understanding unfamiliar code, adding or modifying features, performing bounded refactors safely, and locating examples, invariants, and blast radius.
 
+Related Task Registry ID: `2026-03-07-shared-config`
+
 ## Scope
 
 ### In Scope
@@ -54,6 +56,7 @@ The system is not a generic question-answering assistant. It is a repository mem
 - Hybrid retrieval using `ra_ap_syntax` chunk spans, `rust-analyzer` semantic enrichment when available, BM25 via Tantivy, metadata in Turso, and vector storage in Qdrant.
 - Snapshot-aware indexing keyed by repository, git worktree, commit SHA, target triple, feature set, and cfg profile.
 - Local developer use through a CLI and a local MCP server over Unix sockets.
+- Shared TOML configuration for `rarag`, `raragd`, and `rarag-mcp`, with code defaults that remain overridable.
 - Retrieval modes tuned for workflow phases and repository-assistance tasks.
 - Test-first development, verification evidence, and review/fix loops.
 
@@ -89,6 +92,24 @@ The architecture consists of four Rust crates in one workspace:
 - `rarag`: CLI wrapper around daemon requests, with stable shell and JSON output modes.
 - `rarag-mcp`: local MCP server over Unix sockets that exposes repository-assistance tools backed by the daemon.
 
+### Configuration Contract
+
+- A single optional TOML file, `rarag.toml`, is the canonical user-facing configuration surface for `rarag`, `raragd`, and `rarag-mcp`.
+- Shared sections cover runtime paths, storage endpoints, embedding provider settings, indexing behavior, and retrieval behavior.
+- Binary-specific sections cover CLI output defaults, daemon socket/service settings, and MCP socket/tool exposure settings.
+- Code defaults remain the first layer. Config values override code defaults. Explicit environment and CLI overrides may apply on top where supported by a binary.
+- Supported config resolution order is:
+  1. compiled defaults
+  2. explicit `--config <path>`
+  3. `$RARAG_CONFIG`
+  4. `$XDG_CONFIG_HOME/rarag/rarag.toml`
+  5. `~/.config/rarag/rarag.toml`
+  6. per-field env overrides where explicitly documented
+  7. CLI flags
+- Config loading must be shared in `rarag-core`; binaries may layer only binary-local overrides and validation on top.
+- Missing config files must not be fatal when defaults are sufficient.
+- Secrets must never be stored in repo examples or required in config files; config must reference env var names for credentials.
+
 ### Storage Contract
 
 - Turso stores snapshot metadata, chunk metadata, graph edges, indexing runs, query audit rows, and provider configuration metadata.
@@ -101,6 +122,7 @@ The architecture consists of four Rust crates in one workspace:
 - The MVP must use a real embedding provider, not a fake or no-op implementation.
 - The first concrete provider is `OpenAI-compatible HTTP embeddings` configured by environment variables.
 - Provider configuration must include model name, vector dimension, endpoint base URL, and credential source.
+- Provider configuration must also include an overridable endpoint path so OpenAI-compatible proxies and gateways can be targeted without code changes.
 - Query and chunk embeddings must come from the same configured model within a given snapshot lineage.
 
 ### Chunking Contract
@@ -190,6 +212,13 @@ Defaults:
 
 All paths must be overridable by config or CLI flags.
 
+### Security Contract
+
+- Example config files must contain no tokens, passwords, or inline secrets.
+- Config parsing and error reporting must avoid echoing secret values from environment variables.
+- Binaries must tolerate missing secret env vars until the dependent operation is actually invoked, unless the binary is explicitly validating readiness.
+- Config examples may reference credential env var names only.
+
 ## Invariants
 
 - Snapshot identity is immutable after creation.
@@ -202,6 +231,8 @@ All paths must be overridable by config or CLI flags.
 - Query neighborhoods stay bounded and mode-specific; retrieval must not degenerate into whole-file dumping.
 - The system surfaces evidence and uncertainty instead of hiding stale or missing semantic data.
 - Development workflow support is phase-aware and stops after three review/fix loops unless the caller explicitly overrides policy.
+- Config defaults remain available even when no config file exists.
+- Shared config semantics remain consistent across CLI, daemon, and MCP binaries.
 
 ## Task Contracts
 
