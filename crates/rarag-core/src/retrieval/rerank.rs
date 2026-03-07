@@ -75,14 +75,14 @@ pub fn rerank_candidates(
 fn workflow_phase_bias(workflow_phase: WorkflowPhase, chunk: &ChunkRecord) -> f32 {
     match workflow_phase {
         WorkflowPhase::WriteTests | WorkflowPhase::Verify => {
-            if chunk.chunk_kind == "TestFunction" {
+            if is_test_like(chunk) {
                 0.8
             } else {
                 0.0
             }
         }
         WorkflowPhase::Review => {
-            if chunk.chunk_kind == "TestFunction" {
+            if is_test_like(chunk) {
                 0.4
             } else {
                 0.2
@@ -109,20 +109,38 @@ fn query_mode_bias(query_mode: QueryMode, chunk: &ChunkRecord) -> f32 {
             }
         }
         QueryMode::BoundedRefactor | QueryMode::BlastRadius => {
-            if chunk.chunk_kind == "TestFunction" {
+            if is_test_like(chunk) {
                 0.6
             } else {
                 0.2
             }
         }
         QueryMode::FindExamples => {
-            if chunk.chunk_kind == "TestFunction" {
+            if is_example_like(chunk) {
                 0.8
             } else {
                 0.1
             }
         }
     }
+}
+
+fn is_test_like(chunk: &ChunkRecord) -> bool {
+    chunk.chunk_kind == "TestFunction"
+        || chunk
+            .retrieval_markers
+            .iter()
+            .any(|marker| marker == "test" || marker == "doctest")
+}
+
+fn is_example_like(chunk: &ChunkRecord) -> bool {
+    matches!(
+        chunk.chunk_kind.as_str(),
+        "TestFunction" | "ExampleFile" | "Doctest"
+    ) || chunk
+        .retrieval_markers
+        .iter()
+        .any(|marker| matches!(marker.as_str(), "test" | "example" | "doctest"))
 }
 
 fn worktree_diff_bias(query_mode: QueryMode) -> f32 {

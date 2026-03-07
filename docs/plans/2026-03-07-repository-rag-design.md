@@ -50,7 +50,7 @@ Use a `daemon + thin clients` architecture.
 - `rarag-core` owns chunking, indexing, retrieval, and neighborhood assembly.
 - `raragd` owns warm indexes, Turso/Tantivy/Qdrant connections, and a Unix-socket API.
 - `rarag` is the shell-facing CLI.
-- `rarag-mcp` is the local MCP adapter over a Unix socket.
+- `rarag-mcp` is the local MCP adapter over a Unix socket and must remain compatible with standard local MCP clients rather than a project-local protocol.
 
 This keeps the runtime small, supports shell scripts cleanly, and avoids duplicating indexing logic across CLI and MCP clients.
 
@@ -65,6 +65,8 @@ Primary chunk types:
 - symbol chunks
 - body regions
 - test/example chunks
+
+Repository-assistance chunking must include `src/`, Rust integration-test files, `examples/`, and runnable Rust doctests extracted from item docs.
 
 Oversized bodies split recursively, but every body region keeps the owning symbol header and canonical symbol path.
 
@@ -88,6 +90,8 @@ Use hybrid retrieval:
 - lexical recall with Tantivy BM25
 - semantic recall with Qdrant vectors
 - bounded graph expansion using metadata edges from Turso
+
+The lexical side must include symbol names, docs text, signatures, and example/test markers so repository assistance does not collapse into vector-only retrieval.
 
 Retrieval is always snapshot-scoped and task-aware.
 

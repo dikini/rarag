@@ -25,6 +25,8 @@ The format is based on Common Changelog:
 - Added a shell-friendly CLI and a local MCP-style Unix-socket server that both map directly to the shared daemon contract.
 - Added an opt-in `scripts/check-live-rag-stack.sh` pre-merge check for live OpenAI embeddings plus a real Qdrant endpoint.
 - Added `docs/ops/qdrant-runtime.md` to document Qdrant runtime setup for operators and developers.
+- Added a focused follow-up compatibility plan for bringing `main` into line with the canonical repository RAG spec around MCP transport, example/doctest indexing, and lexical schema coverage.
+- Added MCP protocol compatibility regressions, example/doctest chunking regressions, and rich Tantivy schema contract tests for the repository RAG compatibility work.
 
 ### Changed
 
@@ -33,6 +35,9 @@ The format is based on Common Changelog:
 - Removed runtime workflow enforcement from the `rarag` roadmap; workflow orchestration remains in scripts, docs, policy, and external tools rather than the daemon, CLI, or MCP runtime.
 - Changed daemon and MCP defaults to use distinct Unix socket paths, while runtime socket overrides derive a companion MCP socket by default.
 - Changed the CLI and MCP contract implementations to expose the spec-named command and tool surfaces while preserving compatibility aliases for existing callers.
+- Clarified the architecture spec so MCP means actual MCP-compatible Unix-socket transport, and so chunking plus lexical storage requirements explicitly cover examples, doctests, docs text, signatures, and retrieval markers.
+- Changed `rarag-mcp` to accept JSON-RPC/MCP-style initialize, tool discovery, and tool call messages over the Unix socket while retaining the legacy local protocol as a compatibility shim for existing tests.
+- Changed structural chunking and metadata to carry docs text, signature text, parent relationships, retrieval markers, and workflow hints across `src/`, `examples/`, integration tests, and extracted Rust doctests.
 
 ### Fixed
 
@@ -40,6 +45,7 @@ The format is based on Common Changelog:
 - Fixed worktree-root snapshot resolution to select the latest snapshot instead of failing after repeated indexing, switched the operational vector store to endpoint-backed Qdrant with an explicit test-only in-memory fallback, and hardened Unix-socket cleanup to refuse non-socket paths.
 - Fixed retrieval to restore BM25/Tantivy candidate search alongside vector search, added automated CLI and MCP contract regressions, and moved non-`XDG_RUNTIME_DIR` socket defaults into private per-user runtime directories with `0700` permissions.
 - Fixed CLI and MCP phase parsing to accept the spec aliases `tests` and `code`, and added integration coverage for phase aliases plus the home-state runtime socket fallback.
+- Fixed lexical retrieval so code-like queries fall back to normalized BM25 parsing instead of failing on Tantivy syntax errors, and expanded lexical indexing to cover symbol names, docs text, signatures, and retrieval markers.
 
 ### Removed
 

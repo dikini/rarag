@@ -113,7 +113,7 @@ The architecture consists of four Rust crates in one workspace:
 ### Storage Contract
 
 - Turso stores snapshot metadata, chunk metadata, graph edges, indexing runs, query audit rows, and provider configuration metadata.
-- Tantivy stores lexical fields for chunk text, symbol path, names, docs, signatures, file path, test markers, and workflow hints.
+- Tantivy stores lexical fields for chunk text, symbol path, symbol name, docs text, extracted signature text, file path, chunk kind, test/example markers, and workflow hints.
 - Qdrant stores chunk vectors and optional reranking helper payloads keyed by `chunk_id` and `snapshot_id`.
 - All three stores must use the same stable `chunk_id` and `snapshot_id` values.
 
@@ -130,7 +130,9 @@ The architecture consists of four Rust crates in one workspace:
 - `ra_ap_syntax` is the required source-preserving chunk substrate.
 - Chunk creation is top-down: crate -> module -> item -> body-region.
 - Oversized bodies may split into nested regions, but each body-region must preserve the owning symbol header, canonical symbol path, and source span.
+- Structural indexing must traverse repository Rust sources needed for repository assistance, including `src/`, Rust integration tests, and `examples/` when present.
 - Tests, doctests, and example code are first-class chunks.
+- Rust doc comments with runnable fenced code blocks must be extracted into retrievable doctest/example chunks with source backreferences to the owning item.
 - Structural chunking must succeed even when semantic enrichment is unavailable.
 
 ### Semantic Enrichment Contract
@@ -191,6 +193,9 @@ Required flags:
 
 The MCP server must listen on a Unix socket and expose tools that map directly to repository-assistance operations.
 
+- The server must speak actual MCP request/response semantics over the Unix-socket transport rather than a project-local tagged JSON protocol.
+- `initialize`, tool discovery, and tool invocation must remain compatible with local MCP clients that expect standard MCP tool metadata and call shapes.
+
 Required tools:
 
 - `rag_query`
@@ -233,6 +238,8 @@ All paths must be overridable by config or CLI flags.
 - Development workflow support is phase-aware for retrieval and reranking only; workflow enforcement remains in scripts, docs, and external orchestration.
 - Config defaults remain available even when no config file exists.
 - Shared config semantics remain consistent across CLI, daemon, and MCP binaries.
+- The MCP transport remains interoperable with standard local MCP clients over Unix sockets.
+- Lexical storage remains rich enough to satisfy symbol, docs/example, and bounded-refactor retrieval use cases without depending entirely on embeddings.
 
 ## Task Contracts
 
