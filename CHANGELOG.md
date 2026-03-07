@@ -31,6 +31,7 @@ The format is based on Common Changelog:
 ### Changed
 
 - Initialized required project docs by resolving startup placeholders in `README.md` and `AGENTS.md`, and aligned security reporting guidance with repository issue-based intake.
+- Replaced the leftover scaffold README with a project-specific overview based on the repo template, covering the actual `rarag` workspace, runtime model, configuration, and verification workflow.
 - Made the OpenAI-compatible embedding client configurable for provider base URLs and endpoint paths, with the OpenAI default target aligned to `/v1/embeddings`.
 - Removed runtime workflow enforcement from the `rarag` roadmap; workflow orchestration remains in scripts, docs, policy, and external tools rather than the daemon, CLI, or MCP runtime.
 - Changed daemon and MCP defaults to use distinct Unix socket paths, while runtime socket overrides derive a companion MCP socket by default.
