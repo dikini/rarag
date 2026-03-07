@@ -13,6 +13,7 @@ The format is based on Common Changelog:
 - Added the Phase 1 Rust workspace skeleton with `rarag-core`, `raragd`, `rarag`, and `rarag-mcp`, plus bootstrap tests and toolchain configuration.
 - Added initial application config and snapshot identity types with validation and JSON roundtrip coverage for worktree-aware indexing.
 - Added shared app-config defaults and optional binary-specific config sections for CLI, daemon, and MCP settings.
+- Added shared TOML config loading with deterministic search order and merge-on-default behavior in `rarag-core`.
 - Added the Turso-backed metadata schema and snapshot store with indexing-run and query-audit recording.
 - Added the first `ra_ap_syntax` structural chunker with workspace fixture coverage for symbols, tests, and oversized body-region splits.
 - Added Tantivy indexing, prepared Qdrant point ingestion, and an OpenAI-compatible embedding request builder tied together through snapshot reindexing.
