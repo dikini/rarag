@@ -1,0 +1,8 @@
+[workspace]
+members = [
+  "crates/rarag-core",
+  "crates/raragd",
+  "crates/rarag",
+  "crates/rarag-mcp",
+]
+resolver = "3"

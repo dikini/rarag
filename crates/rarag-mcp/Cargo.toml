@@ -1,0 +1,10 @@
+[package]
+name = "rarag-mcp"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.93"
+publish = false
+
+[[bin]]
+name = "rarag-mcp"
+path = "src/main.rs"
