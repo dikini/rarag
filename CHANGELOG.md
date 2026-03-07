@@ -24,6 +24,7 @@ The format is based on Common Changelog:
 - Added a Unix-socket daemon API with snapshot-aware index, query, status, and shutdown requests backed by the shared repository retrieval pipeline.
 - Added a shell-friendly CLI and a local MCP-style Unix-socket server that both map directly to the shared daemon contract.
 - Added an opt-in `scripts/check-live-rag-stack.sh` pre-merge check for live OpenAI embeddings plus a real Qdrant endpoint.
+- Added `docs/ops/qdrant-runtime.md` to document Qdrant runtime setup for operators and developers.
 
 ### Changed
 

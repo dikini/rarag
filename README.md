@@ -60,6 +60,12 @@ scripts/check-tests.sh
 - For OpenAI embeddings, the documented default is:
   `base_url = "https://api.openai.com/v1"` and `endpoint_path = "/embeddings"`
 
+## Runtime Operations
+
+- Qdrant runtime and operator guide: `docs/ops/qdrant-runtime.md`
+- Deterministic local and CI tests do not require Qdrant.
+- Live daemon operation and live pre-merge checks do require a reachable Qdrant service.
+
 ## Development Workflow
 
 Document the mandatory feedback loop and pre-commit expectations.
