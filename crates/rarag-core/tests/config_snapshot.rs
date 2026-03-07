@@ -1,5 +1,6 @@
 use rarag_core::config::{
-    AppConfig, EmbeddingProviderConfig, QdrantConfig, RuntimePaths, TantivyConfig, TursoConfig,
+    AppConfig, CliConfig, DaemonConfig, EmbeddingProviderConfig, McpConfig, QdrantConfig,
+    RuntimePaths, TantivyConfig, TursoConfig,
 };
 use rarag_core::snapshot::SnapshotKey;
 
@@ -28,6 +29,13 @@ fn sample_config() -> AppConfig {
             api_key_env: "EMBEDDING_API_KEY".into(),
             dimensions: 1_536,
         },
+        cli: Some(CliConfig { default_json: true }),
+        daemon: Some(DaemonConfig {
+            socket_path: "/run/user/1000/rarag/raragd.sock".into(),
+        }),
+        mcp: Some(McpConfig {
+            socket_path: "/run/user/1000/rarag/raragd.sock".into(),
+        }),
     }
 }
 
@@ -41,6 +49,50 @@ fn parses_runtime_paths() {
     );
     assert_eq!(config.runtime.state_root, "/tmp/rarag/state");
     assert_eq!(config.runtime.cache_root, "/tmp/rarag/cache");
+}
+
+#[test]
+fn builds_default_app_config() {
+    let config = AppConfig::default();
+
+    assert_eq!(config.embeddings.base_url, "https://api.openai.com/v1");
+    assert_eq!(config.embeddings.endpoint_path, "/embeddings");
+    assert_eq!(config.embeddings.model, "text-embedding-3-small");
+    assert_eq!(config.embeddings.dimensions, 1_536);
+}
+
+#[test]
+fn binary_sections_are_optional() {
+    let config: AppConfig = serde_json::from_value(serde_json::json!({
+        "runtime": {
+            "socket_path": "/run/user/1000/rarag/raragd.sock",
+            "state_root": "/tmp/rarag/state",
+            "cache_root": "/tmp/rarag/cache"
+        },
+        "turso": {
+            "database_url": "libsql://localhost",
+            "auth_token_env": "TURSO_AUTH_TOKEN"
+        },
+        "tantivy": {
+            "index_root": "/tmp/rarag/index"
+        },
+        "qdrant": {
+            "endpoint": "http://127.0.0.1:6334",
+            "collection": "rarag_chunks"
+        },
+        "embeddings": {
+            "base_url": "https://api.openai.com/v1",
+            "endpoint_path": "/embeddings",
+            "model": "text-embedding-3-small",
+            "api_key_env": "OPENAI_API_KEY",
+            "dimensions": 1536
+        }
+    }))
+    .expect("deserialize config without binary sections");
+
+    assert!(config.cli.is_none());
+    assert!(config.daemon.is_none());
+    assert!(config.mcp.is_none());
 }
 
 #[test]
@@ -59,6 +111,14 @@ fn rejects_incomplete_embedding_config() {
     assert!(err.contains("endpoint_path"), "unexpected error: {err}");
     assert!(err.contains("api_key_env"), "unexpected error: {err}");
     assert!(err.contains("dimensions"), "unexpected error: {err}");
+}
+
+#[test]
+fn defaults_preserve_openai_embedding_endpoint_shape() {
+    let config = AppConfig::default();
+
+    assert_eq!(config.embeddings.base_url, "https://api.openai.com/v1");
+    assert_eq!(config.embeddings.endpoint_path, "/embeddings");
 }
 
 #[test]
