@@ -1,0 +1,119 @@
+mod neighborhood;
+mod query;
+mod rerank;
+
+use crate::embeddings::EmbeddingProvider;
+use crate::indexing::{QdrantPointStore, TantivyChunkStore};
+use crate::metadata::{QueryAuditRecord, SnapshotStore};
+use neighborhood::assemble_neighborhood;
+pub use query::{QueryMode, RetrievalRequest, RetrievalResponse, RetrievedChunk, WorkflowPhase};
+use rerank::{Candidate, rerank_candidates};
+
+pub struct RepositoryRetriever<P> {
+    metadata: SnapshotStore,
+    tantivy: TantivyChunkStore,
+    qdrant: QdrantPointStore,
+    provider: P,
+}
+
+impl<P> RepositoryRetriever<P>
+where
+    P: EmbeddingProvider,
+{
+    pub fn new(
+        metadata: SnapshotStore,
+        tantivy: TantivyChunkStore,
+        qdrant: QdrantPointStore,
+        provider: P,
+    ) -> Self {
+        Self {
+            metadata,
+            tantivy,
+            qdrant,
+            provider,
+        }
+    }
+
+    pub async fn retrieve(&self, request: RetrievalRequest) -> Result<RetrievalResponse, String> {
+        let all_chunks = self.metadata.load_chunks(&request.snapshot_id).await?;
+        let mut warnings = Vec::new();
+
+        let seed_chunks = if let Some(symbol_path) = request.symbol_path.as_deref() {
+            let hits = self.tantivy.search_exact_symbol_for_snapshot(
+                &request.snapshot_id,
+                symbol_path,
+                request.effective_limit(),
+            )?;
+            let chunk_ids: Vec<_> = hits.into_iter().map(|hit| hit.chunk_id).collect();
+            let seeds: Vec<_> = all_chunks
+                .iter()
+                .filter(|chunk| chunk_ids.iter().any(|id| id == &chunk.chunk_id))
+                .cloned()
+                .collect();
+            if seeds.is_empty() {
+                warnings.push("exact symbol match not found".to_string());
+            }
+            seeds
+        } else {
+            warnings.push("symbol path not provided; exact symbol retrieval skipped".to_string());
+            Vec::new()
+        };
+
+        let semantic_hits = self.semantic_candidates(&request)?;
+        if semantic_hits.is_empty() {
+            warnings
+                .push("semantic vector search returned no snapshot-local candidates".to_string());
+        }
+
+        let mut candidates = assemble_neighborhood(&request, &all_chunks, &seed_chunks);
+        for hit in semantic_hits {
+            if let Some(chunk) = all_chunks
+                .iter()
+                .find(|chunk| chunk.chunk_id == hit.chunk_id)
+            {
+                candidates.push(Candidate {
+                    chunk: chunk.clone(),
+                    score: hit.score + 1.5,
+                    evidence: vec!["semantic_vector".to_string()],
+                });
+            }
+        }
+
+        let items = rerank_candidates(
+            &request.snapshot_id,
+            request.query_mode,
+            request.workflow_phase,
+            candidates,
+            request.effective_limit(),
+        );
+
+        self.metadata
+            .record_query_audit(QueryAuditRecord::new(
+                &request.snapshot_id,
+                request.query_mode.as_str(),
+                &request.query_text,
+                u64::try_from(items.len()).map_err(|err| err.to_string())?,
+            ))
+            .await?;
+
+        Ok(RetrievalResponse { items, warnings })
+    }
+
+    fn semantic_candidates(
+        &self,
+        request: &RetrievalRequest,
+    ) -> Result<Vec<crate::indexing::VectorSearchHit>, String> {
+        let vectors = self
+            .provider
+            .embed_texts(std::slice::from_ref(&request.query_text))?;
+        let query_vector = vectors
+            .into_iter()
+            .next()
+            .ok_or_else(|| "embedding provider returned no query vector".to_string())?;
+        self.qdrant.search_snapshot(
+            &request.snapshot_id,
+            &query_vector,
+            request.effective_limit(),
+        )
+    }
+}

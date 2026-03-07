@@ -15,6 +15,7 @@ The format is based on Common Changelog:
 - Added the Turso-backed metadata schema and snapshot store with indexing-run and query-audit recording.
 - Added the first `ra_ap_syntax` structural chunker with workspace fixture coverage for symbols, tests, and oversized body-region splits.
 - Added Tantivy indexing, prepared Qdrant point ingestion, and an OpenAI-compatible embedding request builder tied together through snapshot reindexing.
+- Added workflow-aware retrieval modes with bounded neighborhood assembly, ranking evidence, and snapshot-local hybrid lookup.
 
 ### Changed
 

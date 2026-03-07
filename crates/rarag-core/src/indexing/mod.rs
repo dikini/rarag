@@ -6,6 +6,7 @@ use crate::embeddings::EmbeddingProvider;
 use crate::metadata::{IndexingRunRecord, SnapshotStore};
 
 pub use qdrant_store::QdrantPointStore;
+pub use qdrant_store::VectorSearchHit;
 pub use tantivy_store::{IndexedDocument, TantivyChunkStore};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -93,5 +94,9 @@ where
 
     pub fn qdrant_store(&self) -> &QdrantPointStore {
         &self.qdrant
+    }
+
+    pub fn into_parts(self) -> (SnapshotStore, TantivyChunkStore, QdrantPointStore, P) {
+        (self.metadata, self.tantivy, self.qdrant, self.provider)
     }
 }
