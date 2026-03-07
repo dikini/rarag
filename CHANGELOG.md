@@ -25,6 +25,7 @@ The format is based on Common Changelog:
 - Added a shell-friendly CLI and a local MCP-style Unix-socket server that both map directly to the shared daemon contract.
 - Added an opt-in `scripts/check-live-rag-stack.sh` pre-merge check for live OpenAI embeddings plus a real Qdrant endpoint.
 - Added `docs/ops/qdrant-runtime.md` to document Qdrant runtime setup for operators and developers.
+- Added a focused follow-up compatibility plan for bringing `main` into line with the canonical repository RAG spec around MCP transport, example/doctest indexing, and lexical schema coverage.
 
 ### Changed
 
@@ -33,6 +34,7 @@ The format is based on Common Changelog:
 - Removed runtime workflow enforcement from the `rarag` roadmap; workflow orchestration remains in scripts, docs, policy, and external tools rather than the daemon, CLI, or MCP runtime.
 - Changed daemon and MCP defaults to use distinct Unix socket paths, while runtime socket overrides derive a companion MCP socket by default.
 - Changed the CLI and MCP contract implementations to expose the spec-named command and tool surfaces while preserving compatibility aliases for existing callers.
+- Clarified the architecture spec so MCP means actual MCP-compatible Unix-socket transport, and so chunking plus lexical storage requirements explicitly cover examples, doctests, docs text, signatures, and retrieval markers.
 
 ### Fixed
 
