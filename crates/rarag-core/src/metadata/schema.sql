@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS snapshots (
 );
 
 CREATE TABLE IF NOT EXISTS chunks (
-    chunk_id TEXT PRIMARY KEY,
+    chunk_id TEXT NOT NULL,
     snapshot_id TEXT NOT NULL,
     chunk_kind TEXT NOT NULL,
     symbol_path TEXT,
@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     start_byte INTEGER NOT NULL,
     end_byte INTEGER NOT NULL,
     text TEXT NOT NULL,
+    PRIMARY KEY (snapshot_id, chunk_id),
     FOREIGN KEY (snapshot_id) REFERENCES snapshots(snapshot_id)
 );
 

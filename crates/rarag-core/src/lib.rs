@@ -1,5 +1,7 @@
 pub mod chunking;
 pub mod config;
+pub mod embeddings;
+pub mod indexing;
 pub mod metadata;
 pub mod snapshot;
 pub mod workspace {

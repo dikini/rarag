@@ -1,5 +1,6 @@
 mod store;
 
+use crate::chunking::Chunk;
 use crate::snapshot::SnapshotKey;
 
 pub use store::SnapshotStore;
@@ -10,6 +11,33 @@ pub struct SnapshotRecord {
     pub key: SnapshotKey,
     pub last_indexed_chunk_count: Option<u64>,
     pub last_query_mode: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChunkRecord {
+    pub chunk_id: String,
+    pub snapshot_id: String,
+    pub chunk_kind: String,
+    pub symbol_path: Option<String>,
+    pub file_path: String,
+    pub start_byte: u32,
+    pub end_byte: u32,
+    pub text: String,
+}
+
+impl ChunkRecord {
+    pub fn from_chunk(snapshot_id: impl Into<String>, chunk: &Chunk) -> Self {
+        Self {
+            chunk_id: chunk.id.clone(),
+            snapshot_id: snapshot_id.into(),
+            chunk_kind: format!("{:?}", chunk.kind),
+            symbol_path: chunk.symbol_path.clone(),
+            file_path: chunk.file_path.display().to_string(),
+            start_byte: chunk.span.start_byte,
+            end_byte: chunk.span.end_byte,
+            text: chunk.text.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

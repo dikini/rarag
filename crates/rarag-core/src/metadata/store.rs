@@ -1,4 +1,5 @@
-use crate::metadata::{IndexingRunRecord, QueryAuditRecord, SnapshotRecord};
+use crate::chunking::Chunk;
+use crate::metadata::{ChunkRecord, IndexingRunRecord, QueryAuditRecord, SnapshotRecord};
 use crate::snapshot::SnapshotKey;
 use turso::{Builder, Connection, Database, Rows};
 
@@ -99,6 +100,33 @@ impl SnapshotStore {
         Ok(())
     }
 
+    pub async fn load_chunks(&self, snapshot_id: &str) -> Result<Vec<ChunkRecord>, String> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT chunk_id, snapshot_id, chunk_kind, symbol_path, file_path, start_byte, end_byte, text FROM chunks WHERE snapshot_id = ?1 ORDER BY file_path, start_byte",
+                [snapshot_id],
+            )
+            .await
+            .map_err(|err| err.to_string())?;
+
+        let mut chunks = Vec::new();
+        while let Some(row) = rows.next().await.map_err(|err| err.to_string())? {
+            chunks.push(ChunkRecord {
+                chunk_id: text_at(&row, 0)?,
+                snapshot_id: text_at(&row, 1)?,
+                chunk_kind: text_at(&row, 2)?,
+                symbol_path: optional_text_at(&row, 3)?,
+                file_path: text_at(&row, 4)?,
+                start_byte: u32_at(&row, 5)?,
+                end_byte: u32_at(&row, 6)?,
+                text: text_at(&row, 7)?,
+            });
+        }
+
+        Ok(chunks)
+    }
+
     pub async fn record_query_audit(&self, record: QueryAuditRecord) -> Result<(), String> {
         self.connection
             .execute(
@@ -113,6 +141,56 @@ impl SnapshotStore {
             .await
             .map_err(|err| err.to_string())?;
         Ok(())
+    }
+
+    pub async fn replace_chunks(&self, snapshot_id: &str, chunks: &[Chunk]) -> Result<(), String> {
+        self.connection
+            .execute("DELETE FROM chunks WHERE snapshot_id = ?1", [snapshot_id])
+            .await
+            .map_err(|err| err.to_string())?;
+
+        for record in chunks
+            .iter()
+            .map(|chunk| ChunkRecord::from_chunk(snapshot_id.to_string(), chunk))
+        {
+            self.connection
+                .execute(
+                    "INSERT INTO chunks (chunk_id, snapshot_id, chunk_kind, symbol_path, file_path, start_byte, end_byte, text) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    (
+                        record.chunk_id.as_str(),
+                        record.snapshot_id.as_str(),
+                        record.chunk_kind.as_str(),
+                        record.symbol_path.as_deref(),
+                        record.file_path.as_str(),
+                        i64::from(record.start_byte),
+                        i64::from(record.end_byte),
+                        record.text.as_str(),
+                    ),
+                )
+                .await
+                .map_err(|err| err.to_string())?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn chunk_count(&self, snapshot_id: &str) -> Result<usize, String> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT COUNT(*) FROM chunks WHERE snapshot_id = ?1",
+                [snapshot_id],
+            )
+            .await
+            .map_err(|err| err.to_string())?;
+
+        match rows.next().await.map_err(|err| err.to_string())? {
+            Some(row) => {
+                let count: i64 = row.get(0).map_err(|err| err.to_string())?;
+                usize::try_from(count).map_err(|err| err.to_string())
+            }
+            None => Ok(0),
+        }
     }
 
     async fn latest_chunk_count(&self, snapshot_id: &str) -> Result<Option<u64>, String> {
@@ -161,6 +239,15 @@ async fn first_optional_text(rows: &mut Rows) -> Result<Option<String>, String> 
 
 fn text_at(row: &turso::Row, index: usize) -> Result<String, String> {
     row.get(index).map_err(|err| err.to_string())
+}
+
+fn optional_text_at(row: &turso::Row, index: usize) -> Result<Option<String>, String> {
+    row.get(index).map_err(|err| err.to_string())
+}
+
+fn u32_at(row: &turso::Row, index: usize) -> Result<u32, String> {
+    let value: i64 = row.get(index).map_err(|err| err.to_string())?;
+    u32::try_from(value).map_err(|err| err.to_string())
 }
 
 fn split_feature_set(feature_set: &str) -> Vec<&str> {

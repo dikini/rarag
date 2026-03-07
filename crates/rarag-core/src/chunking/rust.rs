@@ -33,14 +33,16 @@ impl RustChunker {
             let source = fs::read_to_string(&file_path).map_err(|err| err.to_string())?;
             let parse = SourceFile::parse(&source, Edition::CURRENT);
             let source_file = parse.tree();
+            let items: Vec<_> = source_file.items().collect();
 
             chunks.push(file_chunk(&file_path, &source, &module_path));
             collect_items(
                 &source,
                 &file_path,
                 &module_path,
-                source_file.items(),
+                items,
                 self.max_body_bytes,
+                true,
                 &mut chunks,
             )?;
         }
@@ -53,14 +55,15 @@ fn collect_items(
     source: &str,
     file_path: &Path,
     module_path: &str,
-    items: impl Iterator<Item = ast::Item>,
+    items: Vec<ast::Item>,
     max_body_bytes: usize,
+    collect_tests: bool,
     chunks: &mut Vec<Chunk>,
 ) -> Result<(), String> {
-    for item in items {
+    for item in &items {
         match item {
             ast::Item::Fn(function) => {
-                let name = item_name(&function)?;
+                let name = item_name(function)?;
                 let symbol_path = format!("{module_path}::{name}");
                 let syntax = function.syntax();
                 chunks.push(chunk_from_range(
@@ -87,7 +90,7 @@ fn collect_items(
                 }
             }
             ast::Item::Struct(strukt) => {
-                let name = item_name(&strukt)?;
+                let name = item_name(strukt)?;
                 chunks.push(chunk_from_range(
                     file_path,
                     source,
@@ -98,7 +101,7 @@ fn collect_items(
                 ));
             }
             ast::Item::Module(module) => {
-                let name = item_name(&module)?;
+                let name = item_name(module)?;
                 let nested_path = format!("{module_path}::{name}");
                 chunks.push(chunk_from_range(
                     file_path,
@@ -114,14 +117,15 @@ fn collect_items(
                         source,
                         file_path,
                         &nested_path,
-                        item_list.items(),
+                        item_list.items().collect(),
                         max_body_bytes,
+                        false,
                         chunks,
                     )?;
                 }
             }
             ast::Item::Enum(enm) => {
-                let name = item_name(&enm)?;
+                let name = item_name(enm)?;
                 chunks.push(chunk_from_range(
                     file_path,
                     source,
@@ -132,7 +136,7 @@ fn collect_items(
                 ));
             }
             ast::Item::Trait(trait_item) => {
-                let name = item_name(&trait_item)?;
+                let name = item_name(trait_item)?;
                 chunks.push(chunk_from_range(
                     file_path,
                     source,
@@ -156,13 +160,9 @@ fn collect_items(
         }
     }
 
-    collect_test_functions(
-        source,
-        file_path,
-        module_path,
-        items_from_file(source),
-        chunks,
-    )?;
+    if collect_tests {
+        collect_test_functions(source, file_path, module_path, items, chunks)?;
+    }
     Ok(())
 }
 
@@ -203,13 +203,6 @@ fn collect_test_functions(
     }
 
     Ok(())
-}
-
-fn items_from_file(source: &str) -> Vec<ast::Item> {
-    SourceFile::parse(source, Edition::CURRENT)
-        .tree()
-        .items()
-        .collect()
 }
 
 fn file_chunk(file_path: &Path, source: &str, module_path: &str) -> Chunk {
