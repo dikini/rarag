@@ -65,3 +65,15 @@ teardown() {
   [[ "$output" == *"destination already exists"* ]]
   [[ "$output" == *"use --force"* ]]
 }
+
+@test "init-from-backbone does not copy local target artifacts" {
+  dest="$TMP_WORK/no-target-copy"
+  mkdir -p "$ROOT/target"
+  printf 'scratch-build-output\n' >"$ROOT/target/init-from-backbone-fixture.txt"
+
+  run "$ROOT/scripts/init-from-backbone.sh" --dest "$dest" --project sigma
+  rm -f "$ROOT/target/init-from-backbone-fixture.txt"
+  [ "$status" -eq 0 ]
+
+  [ ! -e "$dest/target/init-from-backbone-fixture.txt" ]
+}

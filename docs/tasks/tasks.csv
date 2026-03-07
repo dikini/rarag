@@ -1,1 +1,2 @@
 id,type,title,source,status,blocked_by,notes
+TASK-INIT-BACKBONE-TARGET,tooling,Exclude target artifacts from backbone initialization,scripts/init-from-backbone.sh,done,,Prevents copying local build outputs into initialized repositories and is covered by a shell regression test.

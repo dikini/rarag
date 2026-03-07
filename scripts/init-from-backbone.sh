@@ -90,13 +90,15 @@ else
   mkdir -p "$dest_abs"
 fi
 
+# TASK-INIT-BACKBONE-TARGET: keep local build outputs out of initialized repos.
 if command -v rsync >/dev/null 2>&1; then
   rsync -a \
     --exclude '.git' \
     --exclude '.tools' \
+    --exclude 'target' \
     "$source_abs"/ "$dest_abs"/
 else
-  tar -C "$source_abs" -cf - --exclude='.git' --exclude='.tools' . | tar -C "$dest_abs" -xf -
+  tar -C "$source_abs" -cf - --exclude='.git' --exclude='.tools' --exclude='target' . | tar -C "$dest_abs" -xf -
 fi
 
 reset_governance_artifacts() {
