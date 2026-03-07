@@ -608,7 +608,7 @@ Re-run: `cargo test -p rarag-core --test semantic_fixture -- --nocapture`
 - Unit, invariant, and integration checks passing
 - CHANGELOG.md updated
 
-## Phase 5: Clients and End-to-End Workflow Support
+## Phase 5: Clients and End-to-End Support
 
 ### Task 8: Implement the Unix-Socket Daemon API
 
@@ -757,72 +757,10 @@ Re-run: `cargo test -p rarag-core --test daemon_cli_mcp -- --nocapture`
 - Unit, invariant, and integration checks passing
 - CHANGELOG.md updated
 
-### Task 10: Add Review/Fix Loop Guardrails and End-to-End Verification
+## Runtime Boundary Note
 
-**Files:**
+Workflow enforcement and orchestration are intentionally out of scope for `rarag`.
 
-- Create: `crates/rarag-core/src/workflow.rs`
-- Create: `crates/rarag-core/tests/workflow_review_loop.rs`
-- Modify: `crates/rarag-core/src/lib.rs`
-- Modify: `CHANGELOG.md`
-- Test: `crates/rarag-core/tests/workflow_review_loop.rs`
-
-**Preconditions**
-
-- Query modes and client surfaces are complete enough to support review flows.
-
-**Invariants**
-
-- Review/fix loops stop after three iterations by default.
-- Verification evidence is attached before a loop iteration is considered successful.
-- Unresolved risks are returned explicitly when the loop stops early.
-
-**Postconditions**
-
-- Workflow helper types exist for spec/plan/tests/code/verify/review/fix phases.
-- Review/fix iteration accounting is enforced consistently across CLI and MCP paths.
-
-**Tests (must exist before implementation)**
-
-Unit:
-- `workflow_review_loop::stops_after_three_iterations`
-- `workflow_review_loop::requires_verification_evidence_for_success`
-
-Invariant:
-- `workflow_review_loop::phase_ordering_rejects_review_before_verify`
-
-Integration:
-- `workflow_review_loop::bounded_refactor_review_cycle_returns_unresolved_risk_after_limit`
-
-Property-based (optional):
-- none
-
-**Red Phase (required before code changes)**
-
-Command: `cargo test -p rarag-core --test workflow_review_loop -- --nocapture`
-Expected: failing tests for this task only because workflow guardrails do not exist yet.
-
-**Implementation Steps**
-
-1. Add workflow phase and review-loop helper types.
-2. Enforce iteration limits and verification evidence checks.
-3. Add end-to-end workflow tests that exercise the bounded refactor path.
-4. Update `CHANGELOG.md`.
-
-**Green Phase (required)**
-
-Command: `cargo test -p rarag-core --test workflow_review_loop -- --nocapture`
-Expected: all task tests pass.
-
-**Refactor Phase (optional but controlled)**
-
-Allowed scope: `crates/rarag-core/src/workflow.rs`, `crates/rarag-core/tests/workflow_review_loop.rs`
-Re-run: `cargo test -p rarag-core --test workflow_review_loop -- --nocapture`
-
-**Completion Evidence**
-
-- Preconditions satisfied
-- Invariants preserved
-- Postconditions met
-- Unit, invariant, and integration checks passing
-- CHANGELOG.md updated
+- Retrieval remains `workflow phase` aware so agents can ask for context appropriate to `spec`, `plan`, `tests`, `code`, `verify`, `review`, or `fix`.
+- Enforcement of review/fix iteration limits, verification gates, and higher-level orchestration remains in scripts, docs, policy, or external tools such as `sharo`.
+- No `rarag-core`, daemon, CLI, or MCP runtime module should attempt to own or enforce the project workflow state machine.

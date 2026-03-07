@@ -42,7 +42,7 @@ Template-Profile: tdd-strict-v1
 
 Task Registry ID: `2026-03-07-repository-rag-design`
 
-Define the canonical architecture for a Rust-first repository assistance RAG system that supports agents working on this project through a strict development workflow: `spec -> plan -> tests -> code -> verify -> review -> fix`, with at most three review/fix iterations before escalation.
+Define the canonical architecture for a Rust-first repository assistance RAG system that supports agents working on this project through a strict development workflow: `spec -> plan -> tests -> code -> verify -> review -> fix`.
 
 The system is not a generic question-answering assistant. It is a repository memory and retrieval system for understanding unfamiliar code, adding or modifying features, performing bounded refactors safely, and locating examples, invariants, and blast radius.
 
@@ -58,7 +58,7 @@ Related Task Registry ID: `2026-03-07-shared-config`
 - Local developer use through a CLI and a local MCP server over Unix sockets.
 - Shared TOML configuration for `rarag`, `raragd`, and `rarag-mcp`, with code defaults that remain overridable.
 - Retrieval modes tuned for workflow phases and repository-assistance tasks.
-- Test-first development, verification evidence, and review/fix loops.
+- Test-first development and verification-aware repository assistance.
 
 ### Out of Scope
 
@@ -230,7 +230,7 @@ All paths must be overridable by config or CLI flags.
 - Tests and examples remain first-class retrieval candidates, not optional decorations.
 - Query neighborhoods stay bounded and mode-specific; retrieval must not degenerate into whole-file dumping.
 - The system surfaces evidence and uncertainty instead of hiding stale or missing semantic data.
-- Development workflow support is phase-aware and stops after three review/fix loops unless the caller explicitly overrides policy.
+- Development workflow support is phase-aware for retrieval and reranking only; workflow enforcement remains in scripts, docs, and external orchestration.
 - Config defaults remain available even when no config file exists.
 - Shared config semantics remain consistent across CLI, daemon, and MCP binaries.
 
@@ -445,7 +445,7 @@ Property-based (optional):
 
 - CLI and MCP clients return results derived from the same daemon request/response contract.
 - Shell output remains stable with `--json`.
-- Review/fix loop metadata counts iterations and stops at three by default.
+- Workflow enforcement remains outside the runtime and is handled by scripts, docs, and external orchestration.
 
 **Postconditions**
 
@@ -457,7 +457,6 @@ Property-based (optional):
 
 Unit:
 - `transport::tests::serializes_unix_socket_requests`
-- `workflow::tests::stops_after_three_review_fix_iterations`
 
 Invariant:
 - `tests/client_invariants.rs::cli_and_mcp_observe_same_snapshot_result`

@@ -122,7 +122,7 @@ The system is designed to support the project workflow:
 
 Retrieval requests carry both a `workflow phase` and a `query mode`, so results can bias toward invariants, nearby examples, tests, or refactor blast radius depending on the current step.
 
-The review/fix loop stops after three iterations by default and returns explicit unresolved-risk metadata instead of silently continuing.
+Workflow enforcement remains outside the runtime and is handled by scripts, docs, and external orchestration rather than `rarag` binaries.
 
 ### Worktree Model
 
@@ -146,7 +146,7 @@ Worktrees are first-class.
 3. Retrieval: query modes, bounded neighborhoods, reranking
 4. Enrichment: `rust-analyzer` semantic edges
 5. Clients: daemon, CLI, MCP over Unix sockets
-6. Verification: fixture repos, worktree scenarios, review/fix loop evidence
+6. Verification: fixture repos and worktree scenarios
 
 ### Task 1: Ratify Architecture Baseline
 
