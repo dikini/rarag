@@ -151,3 +151,36 @@ fn example_toml_matches_resolved_shape() {
     assert_eq!(config.embeddings.model, "text-embedding-3-small");
     assert_eq!(config.qdrant.collection, "rarag_chunks");
 }
+
+#[test]
+fn daemon_defaults_avoid_shared_tmp_runtime_socket() {
+    let _guard = env_lock()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let dir = tempdir().expect("tempdir");
+
+    let output = Command::new("cargo")
+        .arg("run")
+        .arg("-q")
+        .arg("-p")
+        .arg("raragd")
+        .arg("--")
+        .arg("--print-config")
+        .env_remove("XDG_RUNTIME_DIR")
+        .env("HOME", dir.path())
+        .env_remove("RARAG_CONFIG")
+        .current_dir(workspace_root())
+        .output()
+        .expect("run binary");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
+    assert!(
+        !stdout.contains("socket_path=/tmp/rarag/"),
+        "stdout was: {stdout}"
+    );
+}

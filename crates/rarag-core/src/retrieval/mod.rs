@@ -60,13 +60,43 @@ where
             Vec::new()
         };
 
-        let semantic_hits = self.semantic_candidates(&request).await?;
-        if semantic_hits.is_empty() {
-            warnings
-                .push("semantic vector search returned no snapshot-local candidates".to_string());
+        let lexical_hits = self.tantivy.search_text_for_snapshot(
+            &request.snapshot_id,
+            &request.query_text,
+            request.effective_limit(),
+        )?;
+        if lexical_hits.is_empty() {
+            warnings.push("lexical bm25 search returned no snapshot-local candidates".to_string());
         }
 
+        let semantic_hits = match self.semantic_candidates(&request).await {
+            Ok(hits) => {
+                if hits.is_empty() {
+                    warnings.push(
+                        "semantic vector search returned no snapshot-local candidates".to_string(),
+                    );
+                }
+                hits
+            }
+            Err(err) => {
+                warnings.push(format!("semantic vector search unavailable: {err}"));
+                Vec::new()
+            }
+        };
+
         let mut candidates = assemble_neighborhood(&request, &all_chunks, &seed_chunks, &all_edges);
+        for hit in lexical_hits {
+            if let Some(chunk) = all_chunks
+                .iter()
+                .find(|chunk| chunk.chunk_id == hit.chunk_id)
+            {
+                candidates.push(Candidate {
+                    chunk: chunk.clone(),
+                    score: hit.score + 1.0,
+                    evidence: vec!["lexical_bm25".to_string()],
+                });
+            }
+        }
         for hit in semantic_hits {
             if let Some(chunk) = all_chunks
                 .iter()

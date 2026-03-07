@@ -69,14 +69,24 @@ fn print_help() {
         "  rarag status [--socket <path>] [--snapshot-id <id> | --worktree-root <path>] [--json]"
     );
     println!(
-        "  rarag index --workspace-root <path> --repo-root <path> --worktree-root <path> --git-sha <sha> [--cargo-target <triple>] [--feature <csv>] [--cfg-profile <profile>] [--max-body-bytes <n>] [--socket <path>] [--json]"
+        "  rarag index build --workspace-root <path> --repo-root <path> --worktree <path> --git-sha <sha> [--cargo-target <triple>] [--feature <csv>] [--cfg-profile <profile>] [--max-body-bytes <n>] [--socket <path>] [--json]"
     );
     println!(
-        "  rarag query --mode <mode> --phase <phase> --text <query> [--symbol-path <path>] [--snapshot-id <id> | --worktree-root <path>] [--changed-path <path>]... [--limit <n>] [--socket <path>] [--json] [--dry-run-request]"
+        "  rarag index status [--socket <path>] [--snapshot <id> | --worktree <path>] [--json]"
     );
     println!(
-        "  rarag blast-radius --phase <phase> --text <query> [--symbol-path <path>] [--snapshot-id <id> | --worktree-root <path>] [--changed-path <path>]... [--limit <n>] [--socket <path>] [--json] [--dry-run-request]"
+        "  rarag query --mode <mode> --phase <phase> --text <query> [--symbol-path <path>] [--snapshot <id> | --worktree <path>] [--changed-path <path>]... [--limit <n>] [--socket <path>] [--json] [--dry-run-request]"
     );
+    println!(
+        "  rarag symbol --phase <phase> --text <query> [--symbol-path <path>] [--snapshot <id> | --worktree <path>] [--changed-path <path>]... [--limit <n>] [--socket <path>] [--json] [--dry-run-request]"
+    );
+    println!(
+        "  rarag examples --phase <phase> --text <query> [--symbol-path <path>] [--snapshot <id> | --worktree <path>] [--changed-path <path>]... [--limit <n>] [--socket <path>] [--json] [--dry-run-request]"
+    );
+    println!(
+        "  rarag blast-radius --phase <phase> --text <query> [--symbol-path <path>] [--snapshot <id> | --worktree <path>] [--changed-path <path>]... [--limit <n>] [--socket <path>] [--json] [--dry-run-request]"
+    );
+    println!("  rarag doctor [--socket <path>] [--json] [--dry-run-request]");
 }
 
 fn print_human(response: &rarag_core::daemon::DaemonResponse) {

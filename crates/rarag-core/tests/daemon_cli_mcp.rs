@@ -173,11 +173,12 @@ fn mcp_tool_names_match_contract() {
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
 
-    assert!(stdout.contains("index_workspace"));
-    assert!(stdout.contains("query_context"));
-    assert!(stdout.contains("find_examples"));
-    assert!(stdout.contains("blast_radius"));
-    assert!(stdout.contains("status"));
+    assert!(stdout.contains("rag_reindex"));
+    assert!(stdout.contains("rag_query"));
+    assert!(stdout.contains("rag_symbol_context"));
+    assert!(stdout.contains("rag_examples"));
+    assert!(stdout.contains("rag_blast_radius"));
+    assert!(stdout.contains("rag_index_status"));
 }
 
 #[test]
@@ -251,7 +252,7 @@ fn cli_and_mcp_observe_same_snapshot_result() {
         &mcp_socket,
         serde_json::json!({
             "kind": "call_tool",
-            "name": "query_context",
+            "name": "rag_symbol_context",
             "arguments": {
                 "worktree_root": snapshot_worktree,
                 "mode": "understand-symbol",
@@ -343,7 +344,7 @@ fn cli_and_mcp_roundtrip_against_local_daemon() {
         &mcp_socket,
         serde_json::json!({
             "kind": "call_tool",
-            "name": "blast_radius",
+            "name": "rag_blast_radius",
             "arguments": {
                 "worktree_root": snapshot_worktree,
                 "phase": "review",
@@ -362,4 +363,72 @@ fn cli_and_mcp_roundtrip_against_local_daemon() {
     let _ = daemon.wait();
     let _ = mcp.kill();
     let _ = mcp.wait();
+}
+
+#[test]
+fn cli_supports_spec_command_aliases() {
+    let symbol_stdout = run_cli(&[
+        "symbol",
+        "--socket",
+        "/tmp/rarag-test.sock",
+        "--worktree",
+        "/tmp/worktree",
+        "--phase",
+        "plan",
+        "--text",
+        "example_sum",
+        "--dry-run-request",
+    ]);
+    assert!(symbol_stdout.contains("\"query_mode\": \"UnderstandSymbol\""));
+    assert!(symbol_stdout.contains("\"worktree_root\": \"/tmp/worktree\""));
+
+    let examples_stdout = run_cli(&[
+        "examples",
+        "--socket",
+        "/tmp/rarag-test.sock",
+        "--worktree",
+        "/tmp/worktree",
+        "--phase",
+        "write-tests",
+        "--text",
+        "example_sum",
+        "--dry-run-request",
+    ]);
+    assert!(examples_stdout.contains("\"query_mode\": \"FindExamples\""));
+
+    let index_stdout = run_cli(&[
+        "index",
+        "build",
+        "--socket",
+        "/tmp/rarag-test.sock",
+        "--workspace-root",
+        "/tmp/ws",
+        "--repo-root",
+        "/repo",
+        "--worktree",
+        "/tmp/worktree",
+        "--git-sha",
+        "abc123",
+        "--dry-run-request",
+    ]);
+    assert!(index_stdout.contains("\"kind\": \"index-workspace\""));
+
+    let status_stdout = run_cli(&[
+        "index",
+        "status",
+        "--socket",
+        "/tmp/rarag-test.sock",
+        "--worktree",
+        "/tmp/worktree",
+        "--dry-run-request",
+    ]);
+    assert!(status_stdout.contains("\"kind\": \"status\""));
+
+    let doctor_stdout = run_cli(&[
+        "doctor",
+        "--socket",
+        "/tmp/rarag-test.sock",
+        "--dry-run-request",
+    ]);
+    assert!(doctor_stdout.contains("\"kind\": \"status\""));
 }
