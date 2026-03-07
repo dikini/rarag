@@ -1,0 +1,215 @@
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+use rarag_core::chunking::RustChunker;
+use rarag_core::config::AppConfig;
+use rarag_core::daemon::{
+    DaemonRequest, DaemonResponse, IndexResponse, QueryPayload, StatusPayload,
+};
+use rarag_core::embeddings::{
+    DeterministicEmbeddingProvider, EmbeddingProvider, OpenAiCompatibleEmbeddings,
+};
+use rarag_core::indexing::{ChunkIndexer, QdrantPointStore, TantivyChunkStore};
+use rarag_core::metadata::SnapshotStore;
+use rarag_core::retrieval::{QueryMode, RepositoryRetriever};
+use rarag_core::unix_socket::{prepare_socket_path, remove_socket_if_present};
+use tokio::net::UnixListener;
+use tokio::sync::Mutex;
+
+use crate::config::ServeConfig;
+use crate::transport::{error_response, read_request, write_response};
+
+enum DaemonEmbeddingProvider {
+    OpenAi(OpenAiCompatibleEmbeddings),
+    Deterministic(DeterministicEmbeddingProvider),
+}
+
+impl EmbeddingProvider for DaemonEmbeddingProvider {
+    fn embed_texts(&self, inputs: &[String]) -> Result<Vec<Vec<f32>>, String> {
+        match self {
+            Self::OpenAi(provider) => provider.embed_texts(inputs),
+            Self::Deterministic(provider) => provider.embed_texts(inputs),
+        }
+    }
+}
+
+pub struct DaemonState {
+    metadata: SnapshotStore,
+    tantivy: TantivyChunkStore,
+    qdrant: QdrantPointStore,
+    provider: DaemonEmbeddingProvider,
+}
+
+impl DaemonState {
+    async fn open(config: &AppConfig, serve: &ServeConfig) -> Result<Self, String> {
+        let metadata_path = local_database_path(&config.turso.database_url)?;
+        if let Some(parent) = metadata_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+        }
+        let metadata = SnapshotStore::open_local(&metadata_path.display().to_string()).await?;
+        let tantivy = TantivyChunkStore::open(Path::new(&config.tantivy.index_root))?;
+        let qdrant = if serve.memory_vector_store {
+            QdrantPointStore::new_in_memory(
+                "memory://daemon-test",
+                &config.qdrant.collection,
+                config.embeddings.dimensions,
+            )
+        } else {
+            QdrantPointStore::new(
+                &config.qdrant.endpoint,
+                &config.qdrant.collection,
+                config.embeddings.dimensions,
+            )?
+        };
+        let provider = if serve.deterministic_embeddings {
+            DaemonEmbeddingProvider::Deterministic(DeterministicEmbeddingProvider::new(
+                config.embeddings.dimensions,
+            )?)
+        } else {
+            DaemonEmbeddingProvider::OpenAi(OpenAiCompatibleEmbeddings::from_config(
+                &config.embeddings,
+            )?)
+        };
+
+        Ok(Self {
+            metadata,
+            tantivy,
+            qdrant,
+            provider,
+        })
+    }
+
+    async fn handle_request(&mut self, request: DaemonRequest) -> DaemonResponse {
+        match request {
+            DaemonRequest::Status {
+                snapshot_id,
+                worktree_root,
+            } => match self.resolve_snapshot(snapshot_id, worktree_root).await {
+                Ok(snapshot_id) => DaemonResponse::Status(StatusPayload {
+                    resolved_snapshot_id: snapshot_id,
+                    warnings: Vec::new(),
+                }),
+                Err(err) => error_response(err),
+            },
+            DaemonRequest::IndexWorkspace {
+                snapshot,
+                workspace_root,
+                max_body_bytes,
+            } => match self
+                .index_workspace(snapshot, Path::new(&workspace_root), max_body_bytes)
+                .await
+            {
+                Ok(response) => DaemonResponse::Indexed(response),
+                Err(err) => error_response(err),
+            },
+            DaemonRequest::Query(payload) => self.query(payload).await,
+            DaemonRequest::BlastRadius(mut payload) => {
+                payload.query_mode = QueryMode::BlastRadius;
+                self.query(payload).await
+            }
+            DaemonRequest::Shutdown => DaemonResponse::Ack,
+        }
+    }
+
+    async fn index_workspace(
+        &mut self,
+        snapshot: rarag_core::snapshot::SnapshotKey,
+        workspace_root: &Path,
+        max_body_bytes: usize,
+    ) -> Result<IndexResponse, String> {
+        let snapshot = self.metadata.create_or_get_snapshot(snapshot).await?;
+        let chunks = RustChunker::new(max_body_bytes).chunk_workspace(workspace_root)?;
+        let indexer =
+            ChunkIndexer::new(&self.metadata, &self.tantivy, &self.qdrant, &self.provider);
+        let counts = indexer.reindex_snapshot(&snapshot.id, &chunks).await?;
+        Ok(IndexResponse {
+            snapshot_id: snapshot.id,
+            chunk_count: counts.metadata_rows,
+            warnings: Vec::new(),
+        })
+    }
+
+    async fn query(&mut self, payload: QueryPayload) -> DaemonResponse {
+        if let Err(err) = payload.validate_locator() {
+            return error_response(err);
+        }
+
+        let snapshot_id = match self
+            .resolve_snapshot(payload.snapshot_id.clone(), payload.worktree_root.clone())
+            .await
+        {
+            Ok(Some(snapshot_id)) => snapshot_id,
+            Ok(None) => return error_response("no snapshot found for request"),
+            Err(err) => return error_response(err),
+        };
+
+        let request = payload.into_retrieval_request(snapshot_id);
+        let retriever =
+            RepositoryRetriever::new(&self.metadata, &self.tantivy, &self.qdrant, &self.provider);
+        match retriever.retrieve(request).await {
+            Ok(response) => DaemonResponse::Query(response),
+            Err(err) => error_response(err),
+        }
+    }
+
+    async fn resolve_snapshot(
+        &self,
+        snapshot_id: Option<String>,
+        worktree_root: Option<String>,
+    ) -> Result<Option<String>, String> {
+        if let Some(snapshot_id) = snapshot_id {
+            return Ok(Some(snapshot_id));
+        }
+        if let Some(worktree_root) = worktree_root {
+            let snapshot = self
+                .metadata
+                .resolve_snapshot_for_worktree_root(&worktree_root)
+                .await?;
+            return Ok(snapshot.map(|snapshot| snapshot.id));
+        }
+
+        Err("requests require snapshot_id or worktree_root".to_string())
+    }
+}
+
+pub async fn serve(config: AppConfig, serve: ServeConfig) -> Result<(), String> {
+    let socket_path = serve
+        .socket_path
+        .clone()
+        .unwrap_or_else(|| PathBuf::from(config.daemon_socket_path()));
+    prepare_socket_path(&socket_path)?;
+
+    let listener = UnixListener::bind(&socket_path).map_err(|err| err.to_string())?;
+    let state = Arc::new(Mutex::new(DaemonState::open(&config, &serve).await?));
+
+    loop {
+        let (mut stream, _) = listener.accept().await.map_err(|err| err.to_string())?;
+        let request = match read_request(&mut stream).await {
+            Ok(request) => request,
+            Err(err) => {
+                write_response(&mut stream, &error_response(err)).await?;
+                continue;
+            }
+        };
+        let response = {
+            let mut state = state.lock().await;
+            state.handle_request(request).await
+        };
+        let shutdown = matches!(response, DaemonResponse::Ack);
+        write_response(&mut stream, &response).await?;
+        if shutdown {
+            break;
+        }
+    }
+
+    remove_socket_if_present(&socket_path)?;
+    Ok(())
+}
+
+fn local_database_path(database_url: &str) -> Result<PathBuf, String> {
+    if let Some(path) = database_url.strip_prefix("file:") {
+        Ok(PathBuf::from(path))
+    } else {
+        Err(format!("unsupported local database url: {database_url}"))
+    }
+}
