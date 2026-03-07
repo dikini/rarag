@@ -2307,6 +2307,7 @@ name = "rarag"
 version = "0.1.0"
 dependencies = [
  "rarag-core",
+ "serde_json",
 ]
 
 [[package]]
@@ -2330,6 +2331,8 @@ name = "rarag-mcp"
 version = "0.1.0"
 dependencies = [
  "rarag-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

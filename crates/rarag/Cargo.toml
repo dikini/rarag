@@ -11,3 +11,4 @@ path = "src/main.rs"
 
 [dependencies]
 rarag-core = { path = "../rarag-core" }
+serde_json = "1.0.145"
