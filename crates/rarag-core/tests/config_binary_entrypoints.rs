@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::{Mutex, OnceLock};
+use std::{fs, os::unix::fs::PermissionsExt};
 
 use rarag_core::config_loader::load_app_config;
 use tempfile::tempdir;
@@ -182,5 +183,78 @@ fn daemon_defaults_avoid_shared_tmp_runtime_socket() {
     assert!(
         !stdout.contains("socket_path=/tmp/rarag/"),
         "stdout was: {stdout}"
+    );
+}
+
+#[test]
+fn daemon_and_mcp_default_to_private_home_runtime_root_without_xdg_runtime() {
+    let _guard = env_lock()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let dir = tempdir().expect("tempdir");
+
+    let daemon_output = Command::new("cargo")
+        .arg("run")
+        .arg("-q")
+        .arg("-p")
+        .arg("raragd")
+        .arg("--")
+        .arg("--print-config")
+        .env_remove("XDG_RUNTIME_DIR")
+        .env("HOME", dir.path())
+        .env_remove("RARAG_CONFIG")
+        .current_dir(workspace_root())
+        .output()
+        .expect("run daemon binary");
+    assert!(
+        daemon_output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&daemon_output.stderr)
+    );
+    let daemon_stdout = String::from_utf8(daemon_output.stdout).expect("utf8 stdout");
+    let expected_runtime = dir
+        .path()
+        .join(".local/state/rarag/run/raragd.sock")
+        .display()
+        .to_string();
+    assert!(
+        daemon_stdout.contains(&format!("socket_path={expected_runtime}")),
+        "stdout was: {daemon_stdout}"
+    );
+    let runtime_dir = dir.path().join(".local/state/rarag/run");
+    let mode = fs::metadata(&runtime_dir)
+        .expect("runtime dir metadata")
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(mode, 0o700);
+
+    let mcp_output = Command::new("cargo")
+        .arg("run")
+        .arg("-q")
+        .arg("-p")
+        .arg("rarag-mcp")
+        .arg("--")
+        .arg("--print-config")
+        .env_remove("XDG_RUNTIME_DIR")
+        .env("HOME", dir.path())
+        .env_remove("RARAG_CONFIG")
+        .current_dir(workspace_root())
+        .output()
+        .expect("run mcp binary");
+    assert!(
+        mcp_output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&mcp_output.stderr)
+    );
+    let mcp_stdout = String::from_utf8(mcp_output.stdout).expect("utf8 stdout");
+    let expected_mcp_runtime = dir
+        .path()
+        .join(".local/state/rarag/run/rarag-mcp.sock")
+        .display()
+        .to_string();
+    assert!(
+        mcp_stdout.contains(&format!("socket_path={expected_mcp_runtime}")),
+        "stdout was: {mcp_stdout}"
     );
 }

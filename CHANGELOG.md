@@ -39,6 +39,7 @@ The format is based on Common Changelog:
 - Excluded local `target/` build artifacts from `scripts/init-from-backbone.sh` copies so starter repository initialization stays deterministic and does not pull developer build output into generated repos.
 - Fixed worktree-root snapshot resolution to select the latest snapshot instead of failing after repeated indexing, switched the operational vector store to endpoint-backed Qdrant with an explicit test-only in-memory fallback, and hardened Unix-socket cleanup to refuse non-socket paths.
 - Fixed retrieval to restore BM25/Tantivy candidate search alongside vector search, added automated CLI and MCP contract regressions, and moved non-`XDG_RUNTIME_DIR` socket defaults into private per-user runtime directories with `0700` permissions.
+- Fixed CLI and MCP phase parsing to accept the spec aliases `tests` and `code`, and added integration coverage for phase aliases plus the home-state runtime socket fallback.
 
 ### Removed
 

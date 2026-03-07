@@ -165,6 +165,37 @@ fn cli_parses_phase_and_mode_flags() {
 }
 
 #[test]
+fn cli_accepts_spec_phase_aliases() {
+    let tests_stdout = run_cli(&[
+        "symbol",
+        "--socket",
+        "/tmp/rarag-test.sock",
+        "--worktree",
+        "/tmp/worktree",
+        "--phase",
+        "tests",
+        "--text",
+        "example_sum",
+        "--dry-run-request",
+    ]);
+    assert!(tests_stdout.contains("\"workflow_phase\": \"WriteTests\""));
+
+    let code_stdout = run_cli(&[
+        "symbol",
+        "--socket",
+        "/tmp/rarag-test.sock",
+        "--worktree",
+        "/tmp/worktree",
+        "--phase",
+        "code",
+        "--text",
+        "example_sum",
+        "--dry-run-request",
+    ]);
+    assert!(code_stdout.contains("\"workflow_phase\": \"WriteCode\""));
+}
+
+#[test]
 fn mcp_tool_names_match_contract() {
     let output = Command::new(ensure_binary("rarag-mcp"))
         .arg("--list-tools")
@@ -431,4 +462,91 @@ fn cli_supports_spec_command_aliases() {
         "--dry-run-request",
     ]);
     assert!(doctor_stdout.contains("\"kind\": \"status\""));
+}
+
+#[test]
+fn mcp_accepts_spec_phase_aliases() {
+    let dir = tempdir().expect("tempdir");
+    let daemon_socket = dir.path().join("raragd.sock");
+    let mcp_socket = dir.path().join("rarag-mcp.sock");
+    let snapshot_worktree = "/repo/.worktrees/mcp-phase-aliases";
+
+    let mut daemon = spawn_server(
+        "raragd",
+        &[
+            "serve",
+            "--socket",
+            daemon_socket.to_str().expect("daemon socket"),
+            "--test-deterministic-embeddings",
+            "--test-memory-vector-store",
+        ],
+        &daemon_socket,
+    );
+    let _ = run_cli(&[
+        "index",
+        "build",
+        "--socket",
+        daemon_socket.to_str().expect("daemon socket"),
+        "--workspace-root",
+        fixture_root().to_str().expect("fixture root"),
+        "--repo-root",
+        "/repo",
+        "--worktree",
+        snapshot_worktree,
+        "--git-sha",
+        "abc123",
+        "--json",
+    ]);
+
+    let mut mcp = spawn_server(
+        "rarag-mcp",
+        &[
+            "serve",
+            "--socket",
+            mcp_socket.to_str().expect("mcp socket"),
+            "--daemon-socket",
+            daemon_socket.to_str().expect("daemon socket"),
+        ],
+        &mcp_socket,
+    );
+    let tests_response = mcp_request(
+        &mcp_socket,
+        serde_json::json!({
+            "kind": "call_tool",
+            "name": "rag_examples",
+            "arguments": {
+                "worktree_root": snapshot_worktree,
+                "phase": "tests",
+                "text": "example_sum"
+            }
+        }),
+    );
+    assert!(
+        tests_response["result"]["items"]
+            .as_array()
+            .is_some_and(|items| !items.is_empty())
+    );
+
+    let code_response = mcp_request(
+        &mcp_socket,
+        serde_json::json!({
+            "kind": "call_tool",
+            "name": "rag_symbol_context",
+            "arguments": {
+                "worktree_root": snapshot_worktree,
+                "phase": "code",
+                "text": "example_sum"
+            }
+        }),
+    );
+    assert!(
+        code_response["result"]["items"]
+            .as_array()
+            .is_some_and(|items| !items.is_empty())
+    );
+
+    let _ = daemon.kill();
+    let _ = daemon.wait();
+    let _ = mcp.kill();
+    let _ = mcp.wait();
 }

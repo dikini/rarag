@@ -115,8 +115,8 @@ fn parse_workflow_phase(value: &str) -> Result<WorkflowPhase, String> {
     match value {
         "spec" => Ok(WorkflowPhase::Spec),
         "plan" => Ok(WorkflowPhase::Plan),
-        "write-tests" => Ok(WorkflowPhase::WriteTests),
-        "write-code" => Ok(WorkflowPhase::WriteCode),
+        "write-tests" | "tests" => Ok(WorkflowPhase::WriteTests),
+        "write-code" | "code" => Ok(WorkflowPhase::WriteCode),
         "verify" => Ok(WorkflowPhase::Verify),
         "review" => Ok(WorkflowPhase::Review),
         "fix" => Ok(WorkflowPhase::Fix),
