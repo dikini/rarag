@@ -1,7 +1,8 @@
 use crate::metadata::ChunkRecord;
 use crate::worktree::WorktreeChanges;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum QueryMode {
     UnderstandSymbol,
     ImplementAdjacent,
@@ -32,7 +33,7 @@ impl QueryMode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WorkflowPhase {
     Spec,
     Plan,
@@ -43,7 +44,7 @@ pub enum WorkflowPhase {
     Fix,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RetrievalRequest {
     pub snapshot_id: String,
     pub query_mode: QueryMode,
@@ -92,7 +93,7 @@ impl RetrievalRequest {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RetrievedChunk {
     pub snapshot_id: String,
     pub chunk: ChunkRecord,
@@ -100,7 +101,7 @@ pub struct RetrievedChunk {
     pub evidence: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RetrievalResponse {
     pub items: Vec<RetrievedChunk>,
     pub warnings: Vec<String>,

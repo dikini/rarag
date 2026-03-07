@@ -8,6 +8,29 @@ pub trait EmbeddingProvider {
 }
 
 #[derive(Debug, Clone)]
+pub struct DeterministicEmbeddingProvider {
+    dimensions: usize,
+}
+
+impl DeterministicEmbeddingProvider {
+    pub fn new(dimensions: usize) -> Result<Self, String> {
+        if dimensions == 0 {
+            return Err("dimensions must be greater than zero".to_string());
+        }
+        Ok(Self { dimensions })
+    }
+}
+
+impl EmbeddingProvider for DeterministicEmbeddingProvider {
+    fn embed_texts(&self, inputs: &[String]) -> Result<Vec<Vec<f32>>, String> {
+        Ok(inputs
+            .iter()
+            .map(|input| deterministic_vector(self.dimensions, input))
+            .collect())
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct OpenAiCompatibleEmbeddings {
     base_url: String,
     endpoint_path: String,
@@ -145,4 +168,18 @@ fn normalize_endpoint_path(endpoint_path: String) -> String {
     } else {
         format!("/{trimmed}")
     }
+}
+
+fn deterministic_vector(dimensions: usize, input: &str) -> Vec<f32> {
+    let mut vector = vec![0.0; dimensions];
+    if input.is_empty() {
+        vector[0] = 1.0;
+        return vector;
+    }
+
+    for (index, byte) in input.bytes().enumerate() {
+        let slot = index % dimensions;
+        vector[slot] += f32::from(byte) / 255.0;
+    }
+    vector
 }

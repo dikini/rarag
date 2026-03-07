@@ -3,10 +3,11 @@ mod store;
 use crate::chunking::Chunk;
 use crate::semantic::{SemanticEdge, SemanticEdgeKind};
 use crate::snapshot::SnapshotKey;
+use serde::{Deserialize, Serialize};
 
 pub use store::SnapshotStore;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SnapshotRecord {
     pub id: String,
     pub key: SnapshotKey,
@@ -14,7 +15,7 @@ pub struct SnapshotRecord {
     pub last_query_mode: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChunkRecord {
     pub chunk_id: String,
     pub snapshot_id: String,
@@ -41,7 +42,7 @@ impl ChunkRecord {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EdgeRecord {
     pub edge_id: String,
     pub snapshot_id: String,
@@ -70,7 +71,7 @@ impl EdgeRecord {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IndexingRunRecord {
     pub snapshot_id: String,
     pub status: String,
@@ -91,7 +92,7 @@ impl IndexingRunRecord {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QueryAuditRecord {
     pub snapshot_id: String,
     pub query_mode: String,

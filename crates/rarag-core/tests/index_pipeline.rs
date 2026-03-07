@@ -136,12 +136,8 @@ fn metadata_lexical_and_vector_counts_match() {
             .expect("create snapshot");
         let tantivy = TantivyChunkStore::open(&tantivy_dir).expect("open tantivy");
         let qdrant = QdrantPointStore::new("rarag_chunks", 4);
-        let indexer = ChunkIndexer::new(
-            metadata,
-            tantivy,
-            qdrant,
-            StaticEmbeddingProvider { dimensions: 4 },
-        );
+        let provider = StaticEmbeddingProvider { dimensions: 4 };
+        let indexer = ChunkIndexer::new(&metadata, &tantivy, &qdrant, &provider);
         let chunks = RustChunker::new(80)
             .chunk_workspace(&fixture_root())
             .expect("chunk workspace");
@@ -178,12 +174,8 @@ fn reindexes_fixture_repository() {
             .expect("create snapshot");
         let tantivy = TantivyChunkStore::open(&tantivy_dir).expect("open tantivy");
         let qdrant = QdrantPointStore::new("rarag_chunks", 4);
-        let indexer = ChunkIndexer::new(
-            metadata,
-            tantivy,
-            qdrant,
-            StaticEmbeddingProvider { dimensions: 4 },
-        );
+        let provider = StaticEmbeddingProvider { dimensions: 4 };
+        let indexer = ChunkIndexer::new(&metadata, &tantivy, &qdrant, &provider);
         let chunks = RustChunker::new(80)
             .chunk_workspace(&fixture_root())
             .expect("chunk workspace");

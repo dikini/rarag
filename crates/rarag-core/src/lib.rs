@@ -1,6 +1,7 @@
 pub mod chunking;
 pub mod config;
 pub mod config_loader;
+pub mod daemon;
 pub mod embeddings;
 pub mod indexing;
 pub mod metadata;

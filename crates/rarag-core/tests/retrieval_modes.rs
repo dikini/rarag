@@ -39,7 +39,14 @@ impl EmbeddingProvider for StaticEmbeddingProvider {
     }
 }
 
-async fn build_retriever() -> (String, RepositoryRetriever<StaticEmbeddingProvider>) {
+async fn build_retriever() -> (
+    String,
+    tempfile::TempDir,
+    SnapshotStore,
+    TantivyChunkStore,
+    QdrantPointStore,
+    StaticEmbeddingProvider,
+) {
     let dir = tempdir().expect("tempdir");
     let metadata_path = dir.path().join("metadata.db");
     let tantivy_dir = dir.path().join("tantivy");
@@ -60,7 +67,7 @@ async fn build_retriever() -> (String, RepositoryRetriever<StaticEmbeddingProvid
     let tantivy = TantivyChunkStore::open(&tantivy_dir).expect("open tantivy");
     let qdrant = QdrantPointStore::new("rarag_chunks", 4);
     let provider = StaticEmbeddingProvider { dimensions: 4 };
-    let indexer = ChunkIndexer::new(metadata, tantivy, qdrant, provider);
+    let indexer = ChunkIndexer::new(&metadata, &tantivy, &qdrant, &provider);
     let chunks = RustChunker::new(80)
         .chunk_workspace(&fixture_root())
         .expect("chunk workspace");
@@ -69,21 +76,14 @@ async fn build_retriever() -> (String, RepositoryRetriever<StaticEmbeddingProvid
         .await
         .expect("reindex snapshot");
 
-    let (metadata, tantivy, qdrant, _) = indexer.into_parts();
-    let retriever = RepositoryRetriever::new(
-        metadata,
-        tantivy,
-        qdrant,
-        StaticEmbeddingProvider { dimensions: 4 },
-    );
-
-    (snapshot.id, retriever)
+    (snapshot.id, dir, metadata, tantivy, qdrant, provider)
 }
 
 #[test]
 fn prioritizes_exact_symbol_match() {
     runtime().block_on(async {
-        let (snapshot_id, retriever) = build_retriever().await;
+        let (snapshot_id, _dir, metadata, tantivy, qdrant, provider) = build_retriever().await;
+        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &qdrant, &provider);
         let response = retriever
             .retrieve(
                 RetrievalRequest::new(
@@ -110,7 +110,8 @@ fn prioritizes_exact_symbol_match() {
 #[test]
 fn caps_neighborhood_size_by_mode() {
     runtime().block_on(async {
-        let (snapshot_id, retriever) = build_retriever().await;
+        let (snapshot_id, _dir, metadata, tantivy, qdrant, provider) = build_retriever().await;
+        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &qdrant, &provider);
         let response = retriever
             .retrieve(
                 RetrievalRequest::new(
@@ -163,7 +164,7 @@ fn results_never_cross_snapshot_boundary() {
         let tantivy = TantivyChunkStore::open(&tantivy_dir).expect("open tantivy");
         let qdrant = QdrantPointStore::new("rarag_chunks", 4);
         let provider = StaticEmbeddingProvider { dimensions: 4 };
-        let indexer = ChunkIndexer::new(metadata, tantivy, qdrant, provider);
+        let indexer = ChunkIndexer::new(&metadata, &tantivy, &qdrant, &provider);
         let chunks = RustChunker::new(80)
             .chunk_workspace(&fixture_root())
             .expect("chunk workspace");
@@ -176,13 +177,8 @@ fn results_never_cross_snapshot_boundary() {
             .await
             .expect("reindex snapshot b");
 
-        let (metadata, tantivy, qdrant, _) = indexer.into_parts();
-        let retriever = RepositoryRetriever::new(
-            metadata,
-            tantivy,
-            qdrant,
-            StaticEmbeddingProvider { dimensions: 4 },
-        );
+        let provider = StaticEmbeddingProvider { dimensions: 4 };
+        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &qdrant, &provider);
         let response = retriever
             .retrieve(
                 RetrievalRequest::new(
@@ -209,7 +205,8 @@ fn results_never_cross_snapshot_boundary() {
 #[test]
 fn bounded_refactor_returns_tests_and_references() {
     runtime().block_on(async {
-        let (snapshot_id, retriever) = build_retriever().await;
+        let (snapshot_id, _dir, metadata, tantivy, qdrant, provider) = build_retriever().await;
+        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &qdrant, &provider);
         let response = retriever
             .retrieve(
                 RetrievalRequest::new(

@@ -17,22 +17,22 @@ pub struct ReindexCounts {
     pub vector_points: usize,
 }
 
-pub struct ChunkIndexer<P> {
-    metadata: SnapshotStore,
-    tantivy: TantivyChunkStore,
-    qdrant: QdrantPointStore,
-    provider: P,
+pub struct ChunkIndexer<'a, P> {
+    metadata: &'a SnapshotStore,
+    tantivy: &'a TantivyChunkStore,
+    qdrant: &'a QdrantPointStore,
+    provider: &'a P,
 }
 
-impl<P> ChunkIndexer<P>
+impl<'a, P> ChunkIndexer<'a, P>
 where
     P: EmbeddingProvider,
 {
     pub fn new(
-        metadata: SnapshotStore,
-        tantivy: TantivyChunkStore,
-        qdrant: QdrantPointStore,
-        provider: P,
+        metadata: &'a SnapshotStore,
+        tantivy: &'a TantivyChunkStore,
+        qdrant: &'a QdrantPointStore,
+        provider: &'a P,
     ) -> Self {
         Self {
             metadata,
@@ -101,14 +101,10 @@ where
     }
 
     pub fn tantivy_store(&self) -> &TantivyChunkStore {
-        &self.tantivy
+        self.tantivy
     }
 
     pub fn qdrant_store(&self) -> &QdrantPointStore {
-        &self.qdrant
-    }
-
-    pub fn into_parts(self) -> (SnapshotStore, TantivyChunkStore, QdrantPointStore, P) {
-        (self.metadata, self.tantivy, self.qdrant, self.provider)
+        self.qdrant
     }
 }

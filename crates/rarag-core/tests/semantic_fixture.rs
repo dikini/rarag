@@ -43,8 +43,12 @@ impl EmbeddingProvider for StaticEmbeddingProvider {
 
 async fn build_retriever() -> (
     String,
+    tempfile::TempDir,
     PathBuf,
-    RepositoryRetriever<StaticEmbeddingProvider>,
+    SnapshotStore,
+    TantivyChunkStore,
+    QdrantPointStore,
+    StaticEmbeddingProvider,
 ) {
     let dir = tempdir().expect("tempdir");
     let metadata_path = dir.path().join("metadata.db");
@@ -66,7 +70,7 @@ async fn build_retriever() -> (
     let tantivy = TantivyChunkStore::open(&tantivy_dir).expect("open tantivy");
     let qdrant = QdrantPointStore::new("rarag_chunks", 4);
     let provider = StaticEmbeddingProvider { dimensions: 4 };
-    let indexer = ChunkIndexer::new(metadata, tantivy, qdrant, provider);
+    let indexer = ChunkIndexer::new(&metadata, &tantivy, &qdrant, &provider);
     let chunks = RustChunker::new(80)
         .chunk_workspace(&fixture_root())
         .expect("chunk workspace");
@@ -79,15 +83,7 @@ async fn build_retriever() -> (
         .await
         .expect("reindex snapshot");
 
-    let (metadata, tantivy, qdrant, _) = indexer.into_parts();
-    let retriever = RepositoryRetriever::new(
-        metadata,
-        tantivy,
-        qdrant,
-        StaticEmbeddingProvider { dimensions: 4 },
-    );
-
-    (snapshot.id, fixture_root(), retriever)
+    (snapshot.id, dir, fixture_root(), metadata, tantivy, qdrant, provider)
 }
 
 #[test]
@@ -150,7 +146,9 @@ fn enrichment_never_rewrites_chunk_source_spans() {
 #[test]
 fn bounded_refactor_uses_impl_and_test_edges() {
     runtime().block_on(async {
-        let (snapshot_id, fixture_root, retriever) = build_retriever().await;
+        let (snapshot_id, _dir, fixture_root, metadata, tantivy, qdrant, provider) =
+            build_retriever().await;
+        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &qdrant, &provider);
         let changed = WorktreeChanges::from_paths([fixture_root.join("src/lib.rs")]);
         let response = retriever
             .retrieve(
