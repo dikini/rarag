@@ -1,4 +1,5 @@
 use crate::metadata::ChunkRecord;
+use crate::worktree::WorktreeChanges;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QueryMode {
@@ -50,6 +51,7 @@ pub struct RetrievalRequest {
     pub query_text: String,
     pub symbol_path: Option<String>,
     pub limit: usize,
+    pub worktree_changes: WorktreeChanges,
 }
 
 impl RetrievalRequest {
@@ -66,6 +68,7 @@ impl RetrievalRequest {
             query_text: query_text.into(),
             symbol_path: None,
             limit: query_mode.neighborhood_cap(),
+            worktree_changes: WorktreeChanges::default(),
         }
     }
 
@@ -76,6 +79,11 @@ impl RetrievalRequest {
 
     pub fn with_limit(mut self, limit: usize) -> Self {
         self.limit = limit;
+        self
+    }
+
+    pub fn with_worktree_changes(mut self, worktree_changes: WorktreeChanges) -> Self {
+        self.worktree_changes = worktree_changes;
         self
     }
 

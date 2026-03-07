@@ -20,6 +20,7 @@ The format is based on Common Changelog:
 - Added Tantivy indexing, prepared Qdrant point ingestion, and an OpenAI-compatible embedding request builder tied together through snapshot reindexing.
 - Added workflow-aware retrieval modes with bounded neighborhood assembly, ranking evidence, and snapshot-local hybrid lookup.
 - Added a checked-in OpenAI-compatible example config that references environment variables instead of secrets.
+- Added heuristic semantic enrichment, snapshot-scoped semantic edges, and worktree-diff reranking bias for bounded refactor and review workflows.
 
 ### Changed
 

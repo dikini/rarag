@@ -1,5 +1,8 @@
 use crate::chunking::Chunk;
-use crate::metadata::{ChunkRecord, IndexingRunRecord, QueryAuditRecord, SnapshotRecord};
+use crate::metadata::{
+    ChunkRecord, EdgeRecord, IndexingRunRecord, QueryAuditRecord, SnapshotRecord,
+};
+use crate::semantic::SemanticEdge;
 use crate::snapshot::SnapshotKey;
 use turso::{Builder, Connection, Database, Rows};
 
@@ -127,6 +130,32 @@ impl SnapshotStore {
         Ok(chunks)
     }
 
+    pub async fn load_edges(&self, snapshot_id: &str) -> Result<Vec<EdgeRecord>, String> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT edge_id, snapshot_id, from_chunk_id, to_chunk_id, edge_kind, from_symbol_path, to_symbol_path FROM edges WHERE snapshot_id = ?1 ORDER BY edge_kind, from_chunk_id, to_chunk_id",
+                [snapshot_id],
+            )
+            .await
+            .map_err(|err| err.to_string())?;
+
+        let mut edges = Vec::new();
+        while let Some(row) = rows.next().await.map_err(|err| err.to_string())? {
+            edges.push(EdgeRecord {
+                edge_id: text_at(&row, 0)?,
+                snapshot_id: text_at(&row, 1)?,
+                from_chunk_id: text_at(&row, 2)?,
+                to_chunk_id: text_at(&row, 3)?,
+                edge_kind: text_at(&row, 4)?,
+                from_symbol_path: optional_text_at(&row, 5)?,
+                to_symbol_path: optional_text_at(&row, 6)?,
+            });
+        }
+
+        Ok(edges)
+    }
+
     pub async fn record_query_audit(&self, record: QueryAuditRecord) -> Result<(), String> {
         self.connection
             .execute(
@@ -165,6 +194,40 @@ impl SnapshotStore {
                         i64::from(record.start_byte),
                         i64::from(record.end_byte),
                         record.text.as_str(),
+                    ),
+                )
+                .await
+                .map_err(|err| err.to_string())?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn replace_edges(
+        &self,
+        snapshot_id: &str,
+        edges: &[SemanticEdge],
+    ) -> Result<(), String> {
+        self.connection
+            .execute("DELETE FROM edges WHERE snapshot_id = ?1", [snapshot_id])
+            .await
+            .map_err(|err| err.to_string())?;
+
+        for record in edges
+            .iter()
+            .map(|edge| EdgeRecord::from_semantic_edge(snapshot_id.to_string(), edge))
+        {
+            self.connection
+                .execute(
+                    "INSERT INTO edges (edge_id, snapshot_id, from_chunk_id, to_chunk_id, edge_kind, from_symbol_path, to_symbol_path) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    (
+                        record.edge_id.as_str(),
+                        record.snapshot_id.as_str(),
+                        record.from_chunk_id.as_str(),
+                        record.to_chunk_id.as_str(),
+                        record.edge_kind.as_str(),
+                        record.from_symbol_path.as_deref(),
+                        record.to_symbol_path.as_deref(),
                     ),
                 )
                 .await

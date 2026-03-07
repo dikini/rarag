@@ -36,6 +36,7 @@ where
 
     pub async fn retrieve(&self, request: RetrievalRequest) -> Result<RetrievalResponse, String> {
         let all_chunks = self.metadata.load_chunks(&request.snapshot_id).await?;
+        let all_edges = self.metadata.load_edges(&request.snapshot_id).await?;
         let mut warnings = Vec::new();
 
         let seed_chunks = if let Some(symbol_path) = request.symbol_path.as_deref() {
@@ -65,7 +66,7 @@ where
                 .push("semantic vector search returned no snapshot-local candidates".to_string());
         }
 
-        let mut candidates = assemble_neighborhood(&request, &all_chunks, &seed_chunks);
+        let mut candidates = assemble_neighborhood(&request, &all_chunks, &seed_chunks, &all_edges);
         for hit in semantic_hits {
             if let Some(chunk) = all_chunks
                 .iter()
@@ -83,6 +84,7 @@ where
             &request.snapshot_id,
             request.query_mode,
             request.workflow_phase,
+            &request.worktree_changes,
             candidates,
             request.effective_limit(),
         );

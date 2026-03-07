@@ -5,7 +5,9 @@ pub mod embeddings;
 pub mod indexing;
 pub mod metadata;
 pub mod retrieval;
+pub mod semantic;
 pub mod snapshot;
+pub mod worktree;
 pub mod workspace {
     pub const BINARIES: [&str; 3] = ["rarag", "raragd", "rarag-mcp"];
 

@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS edges (
     from_chunk_id TEXT NOT NULL,
     to_chunk_id TEXT NOT NULL,
     edge_kind TEXT NOT NULL,
+    from_symbol_path TEXT,
+    to_symbol_path TEXT,
     FOREIGN KEY (snapshot_id) REFERENCES snapshots(snapshot_id)
 );
 

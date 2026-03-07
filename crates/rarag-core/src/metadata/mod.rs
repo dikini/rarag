@@ -1,6 +1,7 @@
 mod store;
 
 use crate::chunking::Chunk;
+use crate::semantic::{SemanticEdge, SemanticEdgeKind};
 use crate::snapshot::SnapshotKey;
 
 pub use store::SnapshotStore;
@@ -37,6 +38,35 @@ impl ChunkRecord {
             end_byte: chunk.span.end_byte,
             text: chunk.text.clone(),
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EdgeRecord {
+    pub edge_id: String,
+    pub snapshot_id: String,
+    pub from_chunk_id: String,
+    pub to_chunk_id: String,
+    pub edge_kind: String,
+    pub from_symbol_path: Option<String>,
+    pub to_symbol_path: Option<String>,
+}
+
+impl EdgeRecord {
+    pub fn from_semantic_edge(snapshot_id: impl Into<String>, edge: &SemanticEdge) -> Self {
+        Self {
+            edge_id: edge.edge_id.clone(),
+            snapshot_id: snapshot_id.into(),
+            from_chunk_id: edge.from_chunk_id.clone(),
+            to_chunk_id: edge.to_chunk_id.clone(),
+            edge_kind: edge.kind.as_str().to_string(),
+            from_symbol_path: edge.from_symbol_path.clone(),
+            to_symbol_path: edge.to_symbol_path.clone(),
+        }
+    }
+
+    pub fn semantic_kind(&self) -> Option<SemanticEdgeKind> {
+        SemanticEdgeKind::parse(&self.edge_kind)
     }
 }
 

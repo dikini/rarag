@@ -4,6 +4,7 @@ mod tantivy_store;
 use crate::chunking::Chunk;
 use crate::embeddings::EmbeddingProvider;
 use crate::metadata::{IndexingRunRecord, SnapshotStore};
+use crate::semantic::SemanticEdge;
 
 pub use qdrant_store::QdrantPointStore;
 pub use qdrant_store::VectorSearchHit;
@@ -46,6 +47,16 @@ where
         snapshot_id: &str,
         chunks: &[Chunk],
     ) -> Result<ReindexCounts, String> {
+        self.reindex_snapshot_with_semantics(snapshot_id, chunks, &[])
+            .await
+    }
+
+    pub async fn reindex_snapshot_with_semantics(
+        &self,
+        snapshot_id: &str,
+        chunks: &[Chunk],
+        edges: &[SemanticEdge],
+    ) -> Result<ReindexCounts, String> {
         self.metadata
             .record_indexing_run(IndexingRunRecord::new(
                 snapshot_id,
@@ -54,6 +65,7 @@ where
             ))
             .await?;
         self.metadata.replace_chunks(snapshot_id, chunks).await?;
+        self.metadata.replace_edges(snapshot_id, edges).await?;
         let result = self.reindex_snapshot_inner(snapshot_id, chunks).await;
         let status = if result.is_ok() {
             "completed"

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::metadata::ChunkRecord;
 use crate::retrieval::query::{QueryMode, RetrievedChunk, WorkflowPhase};
+use crate::worktree::WorktreeChanges;
 
 #[derive(Debug, Clone)]
 pub struct Candidate {
@@ -14,6 +15,7 @@ pub fn rerank_candidates(
     snapshot_id: &str,
     query_mode: QueryMode,
     workflow_phase: WorkflowPhase,
+    worktree_changes: &WorktreeChanges,
     candidates: Vec<Candidate>,
     limit: usize,
 ) -> Vec<RetrievedChunk> {
@@ -40,6 +42,16 @@ pub fn rerank_candidates(
         .map(|mut candidate| {
             candidate.score += workflow_phase_bias(workflow_phase, &candidate.chunk);
             candidate.score += query_mode_bias(query_mode, &candidate.chunk);
+            if worktree_changes.matches(&candidate.chunk.file_path) {
+                candidate.score += worktree_diff_bias(query_mode);
+                if !candidate
+                    .evidence
+                    .iter()
+                    .any(|item| item == "worktree_diff")
+                {
+                    candidate.evidence.push("worktree_diff".to_string());
+                }
+            }
             RetrievedChunk {
                 snapshot_id: snapshot_id.to_string(),
                 chunk: candidate.chunk,
@@ -110,5 +122,14 @@ fn query_mode_bias(query_mode: QueryMode, chunk: &ChunkRecord) -> f32 {
                 0.1
             }
         }
+    }
+}
+
+fn worktree_diff_bias(query_mode: QueryMode) -> f32 {
+    match query_mode {
+        QueryMode::BoundedRefactor | QueryMode::BlastRadius => 1.2,
+        QueryMode::ImplementAdjacent => 0.8,
+        QueryMode::FindExamples => 0.5,
+        QueryMode::UnderstandSymbol => 0.4,
     }
 }

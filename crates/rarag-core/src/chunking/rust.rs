@@ -147,12 +147,13 @@ fn collect_items(
                 ));
             }
             ast::Item::Impl(imp) => {
+                let impl_symbol = impl_symbol_path(source, module_path, imp.syntax().text_range());
                 chunks.push(chunk_from_range(
                     file_path,
                     source,
                     ChunkKind::Symbol,
                     imp.syntax().text_range(),
-                    Some(format!("{module_path}::impl")),
+                    Some(impl_symbol),
                     None,
                 ));
             }
@@ -257,6 +258,24 @@ fn chunk_kind_label(kind: &ChunkKind) -> &'static str {
         ChunkKind::BodyRegion => "body",
         ChunkKind::TestFunction => "test",
     }
+}
+
+fn impl_symbol_path(source: &str, module_path: &str, range: TextRange) -> String {
+    let start = u32::from(range.start()) as usize;
+    let end = u32::from(range.end()) as usize;
+    let snippet = &source[start..end];
+    match parse_impl_target_name(snippet) {
+        Some(target) => format!("{module_path}::impl::{target}"),
+        None => format!("{module_path}::impl"),
+    }
+}
+
+fn parse_impl_target_name(snippet: &str) -> Option<&str> {
+    let impl_text = snippet.trim_start().strip_prefix("impl ")?;
+    let head = impl_text
+        .split(|ch: char| ch == '{' || ch == '<' || ch.is_whitespace())
+        .next()?;
+    if head.is_empty() { None } else { Some(head) }
 }
 
 fn symbol_header(source: &str, full_range: TextRange, body_range: TextRange) -> String {
