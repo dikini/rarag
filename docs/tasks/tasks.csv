@@ -1,1 +1,2 @@
 id,type,title,source,status,blocked_by,notes
+2026-03-07-repository-rag-design,design,Design repository RAG architecture and implementation plan,docs/specs/repository-rag-architecture.md,done,,Design doc in docs/plans/2026-03-07-repository-rag-design.md; implementation plan in docs/plans/2026-03-07-repository-rag-implementation-plan.md
