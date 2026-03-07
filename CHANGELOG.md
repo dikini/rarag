@@ -28,6 +28,8 @@ The format is based on Common Changelog:
 
 ### Fixed
 
+- Excluded local `target/` build artifacts from `scripts/init-from-backbone.sh` copies so starter repository initialization stays deterministic and does not pull developer build output into generated repos.
+
 ### Removed
 
 ### Deprecated

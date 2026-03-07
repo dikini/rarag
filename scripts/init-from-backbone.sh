@@ -90,6 +90,7 @@ else
   mkdir -p "$dest_abs"
 fi
 
+# TASK-INIT-BACKBONE-TARGET: keep local build outputs out of initialized repos.
 if command -v rsync >/dev/null 2>&1; then
   rsync -a \
     --exclude '.git' \
