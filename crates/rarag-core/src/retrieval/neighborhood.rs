@@ -55,7 +55,7 @@ pub fn assemble_neighborhood(
         if matches!(
             request.query_mode,
             QueryMode::FindExamples | QueryMode::BoundedRefactor
-        ) && chunk.chunk_kind == "TestFunction"
+        ) && is_example_or_test_chunk(chunk)
         {
             candidates.push(Candidate {
                 chunk: chunk.clone(),
@@ -113,6 +113,16 @@ pub fn assemble_neighborhood(
     candidates
 }
 
+fn is_example_or_test_chunk(chunk: &ChunkRecord) -> bool {
+    matches!(
+        chunk.chunk_kind.as_str(),
+        "TestFunction" | "ExampleFile" | "Doctest"
+    ) || chunk
+        .retrieval_markers
+        .iter()
+        .any(|marker| matches!(marker.as_str(), "test" | "example" | "doctest"))
+}
+
 fn same_file_neighbor(seed_chunks: &[ChunkRecord], candidate: &ChunkRecord) -> bool {
     seed_chunks
         .iter()
@@ -122,13 +132,19 @@ fn same_file_neighbor(seed_chunks: &[ChunkRecord], candidate: &ChunkRecord) -> b
 fn text_reference_score(query_mode: QueryMode, chunk: &ChunkRecord) -> f32 {
     match query_mode {
         QueryMode::BoundedRefactor | QueryMode::BlastRadius => {
-            if chunk.chunk_kind == "TestFunction" {
+            if is_example_or_test_chunk(chunk) {
                 6.0
             } else {
                 5.0
             }
         }
-        QueryMode::FindExamples => 5.5,
+        QueryMode::FindExamples => {
+            if is_example_or_test_chunk(chunk) {
+                6.0
+            } else {
+                5.5
+            }
+        }
         QueryMode::ImplementAdjacent => 4.5,
         QueryMode::UnderstandSymbol => 3.0,
     }

@@ -7,6 +7,8 @@ pub enum ChunkKind {
     Symbol,
     BodyRegion,
     TestFunction,
+    ExampleFile,
+    Doctest,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,6 +24,12 @@ pub struct Chunk {
     pub file_path: PathBuf,
     pub span: SourceSpan,
     pub symbol_path: Option<String>,
+    pub symbol_name: Option<String>,
     pub owning_symbol_header: Option<String>,
+    pub docs_text: Option<String>,
+    pub signature_text: Option<String>,
+    pub parent_symbol_path: Option<String>,
+    pub retrieval_markers: Vec<String>,
+    pub workflow_hints: Vec<String>,
     pub text: String,
 }

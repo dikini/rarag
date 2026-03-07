@@ -22,8 +22,13 @@ pub struct TantivyChunkStore {
     chunk_id: tantivy::schema::Field,
     snapshot_id: tantivy::schema::Field,
     symbol_path: tantivy::schema::Field,
+    symbol_name: tantivy::schema::Field,
+    docs_text: tantivy::schema::Field,
+    signature_text: tantivy::schema::Field,
     file_path: tantivy::schema::Field,
     kind: tantivy::schema::Field,
+    retrieval_markers: tantivy::schema::Field,
+    workflow_hints: tantivy::schema::Field,
     text: tantivy::schema::Field,
 }
 
@@ -35,8 +40,13 @@ impl TantivyChunkStore {
         let chunk_id = schema_builder.add_text_field("chunk_id", STRING | STORED);
         let snapshot_id = schema_builder.add_text_field("snapshot_id", STRING | STORED);
         let symbol_path = schema_builder.add_text_field("symbol_path", STRING | STORED);
+        let symbol_name = schema_builder.add_text_field("symbol_name", TEXT | STORED);
+        let docs_text = schema_builder.add_text_field("docs_text", TEXT | STORED);
+        let signature_text = schema_builder.add_text_field("signature_text", TEXT | STORED);
         let file_path = schema_builder.add_text_field("file_path", STRING | STORED);
         let kind = schema_builder.add_text_field("kind", STRING | STORED);
+        let retrieval_markers = schema_builder.add_text_field("retrieval_markers", TEXT | STORED);
+        let workflow_hints = schema_builder.add_text_field("workflow_hints", TEXT | STORED);
         let text = schema_builder.add_text_field("text", TEXT | STORED);
         let schema = schema_builder.build();
 
@@ -54,8 +64,13 @@ impl TantivyChunkStore {
             chunk_id,
             snapshot_id,
             symbol_path,
+            symbol_name,
+            docs_text,
+            signature_text,
             file_path,
             kind,
+            retrieval_markers,
+            workflow_hints,
             text,
         })
     }
@@ -73,8 +88,13 @@ impl TantivyChunkStore {
                     self.chunk_id => chunk.id.clone(),
                     self.snapshot_id => snapshot_id.to_string(),
                     self.symbol_path => chunk.symbol_path.clone().unwrap_or_default(),
+                    self.symbol_name => chunk.symbol_name.clone().unwrap_or_default(),
+                    self.docs_text => chunk.docs_text.clone().unwrap_or_default(),
+                    self.signature_text => chunk.signature_text.clone().unwrap_or_default(),
                     self.file_path => chunk.file_path.display().to_string(),
                     self.kind => chunk_kind_name(&chunk.kind).to_string(),
+                    self.retrieval_markers => chunk.retrieval_markers.join(" "),
+                    self.workflow_hints => chunk.workflow_hints.join(" "),
                     self.text => chunk.text.clone(),
                 ))
                 .map_err(|err| err.to_string())?;
@@ -114,10 +134,21 @@ impl TantivyChunkStore {
     ) -> Result<Vec<IndexedDocument>, String> {
         let parser = QueryParser::for_index(
             &self.index,
-            vec![self.text, self.symbol_path, self.file_path, self.kind],
+            vec![
+                self.text,
+                self.symbol_path,
+                self.symbol_name,
+                self.docs_text,
+                self.signature_text,
+                self.file_path,
+                self.kind,
+                self.retrieval_markers,
+                self.workflow_hints,
+            ],
         );
         let query = parser
             .parse_query(query_text)
+            .or_else(|_| parser.parse_query(&normalize_query_text(query_text)))
             .map_err(|err| err.to_string())?;
         let searcher = self.reader.searcher();
         let docs = searcher
@@ -196,6 +227,22 @@ impl TantivyChunkStore {
     }
 }
 
+fn normalize_query_text(query_text: &str) -> String {
+    query_text
+        .chars()
+        .map(|ch| {
+            if ch.is_alphanumeric() || ch == '_' {
+                ch
+            } else {
+                ' '
+            }
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 fn chunk_kind_name(kind: &ChunkKind) -> &'static str {
     match kind {
         ChunkKind::CrateSummary => "crate_summary",
@@ -203,5 +250,7 @@ fn chunk_kind_name(kind: &ChunkKind) -> &'static str {
         ChunkKind::Symbol => "symbol",
         ChunkKind::BodyRegion => "body_region",
         ChunkKind::TestFunction => "test_function",
+        ChunkKind::ExampleFile => "example_file",
+        ChunkKind::Doctest => "doctest",
     }
 }

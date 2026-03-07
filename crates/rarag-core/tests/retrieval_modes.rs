@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use rarag_core::chunking::RustChunker;
 use rarag_core::embeddings::EmbeddingProvider;
@@ -15,6 +15,14 @@ fn fixture_root() -> PathBuf {
         .and_then(|path| path.parent())
         .expect("workspace root")
         .join("tests/fixtures/mini_repo")
+}
+
+fn compat_fixture_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|path| path.parent())
+        .expect("workspace root")
+        .join("tests/fixtures/compat_repo")
 }
 
 fn runtime() -> Runtime {
@@ -39,7 +47,11 @@ impl EmbeddingProvider for StaticEmbeddingProvider {
     }
 }
 
-async fn build_retriever() -> (
+async fn build_retriever_for(
+    fixture_root: &Path,
+    worktree_root: &str,
+    max_body_bytes: usize,
+) -> (
     String,
     tempfile::TempDir,
     SnapshotStore,
@@ -56,7 +68,7 @@ async fn build_retriever() -> (
     let snapshot = metadata
         .create_or_get_snapshot(SnapshotKey::new(
             "/repo",
-            "/repo/.worktrees/retrieval-a",
+            worktree_root,
             "abc123",
             "x86_64-unknown-linux-gnu",
             ["default"],
@@ -68,8 +80,8 @@ async fn build_retriever() -> (
     let qdrant = QdrantPointStore::new_in_memory("memory://tests", "rarag_chunks", 4);
     let provider = StaticEmbeddingProvider { dimensions: 4 };
     let indexer = ChunkIndexer::new(&metadata, &tantivy, &qdrant, &provider);
-    let chunks = RustChunker::new(80)
-        .chunk_workspace(&fixture_root())
+    let chunks = RustChunker::new(max_body_bytes)
+        .chunk_workspace(fixture_root)
         .expect("chunk workspace");
     indexer
         .reindex_snapshot(&snapshot.id, &chunks)
@@ -77,6 +89,17 @@ async fn build_retriever() -> (
         .expect("reindex snapshot");
 
     (snapshot.id, dir, metadata, tantivy, qdrant, provider)
+}
+
+async fn build_retriever() -> (
+    String,
+    tempfile::TempDir,
+    SnapshotStore,
+    TantivyChunkStore,
+    QdrantPointStore,
+    StaticEmbeddingProvider,
+) {
+    build_retriever_for(&fixture_root(), "/repo/.worktrees/retrieval-a", 80).await
 }
 
 #[test]
@@ -254,6 +277,36 @@ fn falls_back_to_lexical_bm25_when_symbol_path_is_missing() {
 
         assert!(response.items.iter().any(|item| {
             item.chunk.symbol_path.as_deref() == Some("mini_repo::oversized_example")
+                && item.evidence.iter().any(|entry| entry == "lexical_bm25")
+        }));
+    });
+}
+
+#[test]
+fn lexical_query_can_hit_docs_and_example_text() {
+    runtime().block_on(async {
+        let (snapshot_id, _dir, metadata, tantivy, qdrant, provider) = build_retriever_for(
+            &compat_fixture_root(),
+            "/repo/.worktrees/retrieval-compat",
+            120,
+        )
+        .await;
+        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &qdrant, &provider);
+        let response = retriever
+            .retrieve(
+                RetrievalRequest::new(
+                    snapshot_id,
+                    QueryMode::FindExamples,
+                    WorkflowPhase::Plan,
+                    "assert_eq!(doc_example_sum(2, 3), 5);",
+                )
+                .with_limit(6),
+            )
+            .await
+            .expect("retrieve");
+
+        assert!(response.items.iter().any(|item| {
+            item.chunk.chunk_kind == "Doctest"
                 && item.evidence.iter().any(|entry| entry == "lexical_bm25")
         }));
     });
