@@ -1,0 +1,31 @@
+[runtime]
+socket_path = "/run/user/1000/rarag/raragd.sock"
+state_root = "/home/user/.local/state/rarag"
+cache_root = "/home/user/.cache/rarag"
+
+[turso]
+database_url = "file:/home/user/.local/state/rarag/metadata.db"
+auth_token_env = "TURSO_AUTH_TOKEN"
+
+[tantivy]
+index_root = "/home/user/.cache/rarag/tantivy"
+
+[qdrant]
+endpoint = "http://127.0.0.1:6334"
+collection = "rarag_chunks"
+
+[embeddings]
+base_url = "https://api.openai.com/v1"
+endpoint_path = "/embeddings"
+model = "text-embedding-3-small"
+api_key_env = "OPENAI_API_KEY"
+dimensions = 1536
+
+[cli]
+default_json = false
+
+[daemon]
+socket_path = "/run/user/1000/rarag/raragd.sock"
+
+[mcp]
+socket_path = "/run/user/1000/rarag/raragd.sock"

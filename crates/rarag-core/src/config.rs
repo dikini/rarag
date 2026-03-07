@@ -48,13 +48,32 @@ impl Default for AppConfig {
                 dimensions: 1_536,
             },
             cli: None,
-            daemon: Some(DaemonConfig {
-                socket_path: format!("{runtime_dir}/rarag/raragd.sock"),
-            }),
-            mcp: Some(McpConfig {
-                socket_path: format!("{runtime_dir}/rarag/raragd.sock"),
-            }),
+            daemon: None,
+            mcp: None,
         }
+    }
+}
+
+impl AppConfig {
+    pub fn cli_default_json(&self) -> bool {
+        self.cli
+            .as_ref()
+            .map(|config| config.default_json)
+            .unwrap_or(false)
+    }
+
+    pub fn daemon_socket_path(&self) -> &str {
+        self.daemon
+            .as_ref()
+            .map(|config| config.socket_path.as_str())
+            .unwrap_or(self.runtime.socket_path.as_str())
+    }
+
+    pub fn mcp_socket_path(&self) -> &str {
+        self.mcp
+            .as_ref()
+            .map(|config| config.socket_path.as_str())
+            .unwrap_or(self.runtime.socket_path.as_str())
     }
 }
 

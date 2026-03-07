@@ -2305,6 +2305,9 @@ dependencies = [
 [[package]]
 name = "rarag"
 version = "0.1.0"
+dependencies = [
+ "rarag-core",
+]
 
 [[package]]
 name = "rarag-core"
@@ -2325,10 +2328,16 @@ dependencies = [
 [[package]]
 name = "rarag-mcp"
 version = "0.1.0"
+dependencies = [
+ "rarag-core",
+]
 
 [[package]]
 name = "raragd"
 version = "0.1.0"
+dependencies = [
+ "rarag-core",
+]
 
 [[package]]
 name = "rayon"

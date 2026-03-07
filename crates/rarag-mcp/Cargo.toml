@@ -8,3 +8,6 @@ publish = false
 [[bin]]
 name = "rarag-mcp"
 path = "src/main.rs"
+
+[dependencies]
+rarag-core = { path = "../rarag-core" }

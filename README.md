@@ -54,7 +54,7 @@ scripts/check-tests.sh
 
 ## Example Config
 
-- Example local config: `examples/rarag.openai.example.json`
+- Example local config: `examples/rarag.example.toml`
 - The checked-in example references environment variables only.
 - Keep secrets outside the repo, for example in `~/.config/sharo/daemon.env`.
 - For OpenAI embeddings, the documented default is:
