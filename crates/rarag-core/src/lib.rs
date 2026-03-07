@@ -1,4 +1,5 @@
 pub mod config;
+pub mod metadata;
 pub mod snapshot;
 pub mod workspace {
     pub const BINARIES: [&str; 3] = ["rarag", "raragd", "rarag-mcp"];

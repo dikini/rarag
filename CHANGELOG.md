@@ -12,6 +12,7 @@ The format is based on Common Changelog:
 - Added a repository RAG architecture spec, design note, and phased implementation plan for a Rust-first, worktree-aware hybrid retrieval system using Turso, Tantivy, Qdrant, `ra_ap_syntax`, and `rust-analyzer`.
 - Added the Phase 1 Rust workspace skeleton with `rarag-core`, `raragd`, `rarag`, and `rarag-mcp`, plus bootstrap tests and toolchain configuration.
 - Added initial application config and snapshot identity types with validation and JSON roundtrip coverage for worktree-aware indexing.
+- Added the Turso-backed metadata schema and snapshot store with indexing-run and query-audit recording.
 
 ### Changed
 
