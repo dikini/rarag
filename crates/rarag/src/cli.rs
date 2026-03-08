@@ -26,6 +26,12 @@ pub fn parse_command(
     let secondary = args.get(2).map(String::as_str);
 
     match (primary, secondary) {
+        (Some("daemon"), Some("reload")) => Ok(CliCommand {
+            request: DaemonRequest::ReloadConfig,
+            socket_path,
+            json,
+            dry_run,
+        }),
         (Some("status"), _) | (Some("index"), Some("status")) | (Some("doctor"), _) => {
             Ok(CliCommand {
                 request: DaemonRequest::Status {

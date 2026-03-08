@@ -157,6 +157,7 @@ fn jsonrpc_error(id: Value, code: i64, message: &str) -> Value {
 
 fn map_tool_call(name: &str, arguments: Value) -> Result<DaemonRequest, String> {
     match name {
+        "rag_reload_config" => Ok(DaemonRequest::ReloadConfig),
         "status" | "rag_index_status" => Ok(DaemonRequest::Status {
             snapshot_id: value_string(&arguments, "snapshot_id"),
             worktree_root: value_string(&arguments, "worktree_root"),

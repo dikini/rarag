@@ -18,6 +18,7 @@ pub enum DaemonRequest {
     },
     Query(QueryPayload),
     BlastRadius(QueryPayload),
+    ReloadConfig,
     Shutdown,
 }
 
@@ -64,6 +65,7 @@ pub enum DaemonResponse {
     Status(StatusPayload),
     Indexed(IndexResponse),
     Query(RetrievalResponse),
+    Reloaded(ReloadResponse),
     Ack,
     Error(ErrorResponse),
 }
@@ -79,6 +81,12 @@ pub struct IndexResponse {
     pub snapshot_id: String,
     pub chunk_count: usize,
     pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReloadResponse {
+    pub generation: u64,
+    pub source_path: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

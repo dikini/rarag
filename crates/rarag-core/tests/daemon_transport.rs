@@ -53,17 +53,22 @@ fn send_request_if_ready(
 
 #[allow(clippy::zombie_processes)]
 fn spawn_daemon(socket_path: &Path) -> Child {
+    spawn_daemon_with_args(socket_path, &[])
+}
+
+#[allow(clippy::zombie_processes)]
+fn spawn_daemon_with_args(socket_path: &Path, extra_args: &[&str]) -> Child {
     let daemon_bin = workspace_root().join("target/debug/raragd");
     let runtime_root = socket_path.parent().expect("socket parent");
-    let mut child = Command::new(&daemon_bin)
+    let mut command = Command::new(&daemon_bin);
+    command
         .arg("serve")
         .arg("--socket")
         .arg(socket_path)
         .arg("--test-deterministic-embeddings")
-        .arg("--test-memory-vector-store")
-        .env("XDG_RUNTIME_DIR", runtime_root)
-        .env("XDG_STATE_HOME", runtime_root)
-        .env("XDG_CACHE_HOME", runtime_root)
+        .arg("--test-memory-vector-store");
+    command.args(extra_args);
+    let mut child = command
         .env("XDG_RUNTIME_DIR", runtime_root)
         .env("XDG_STATE_HOME", runtime_root)
         .env("XDG_CACHE_HOME", runtime_root)
@@ -102,6 +107,13 @@ fn serializes_unix_socket_requests() {
 
     assert!(body.contains("\"kind\":\"status\""));
     assert!(body.contains("\"snapshot_id\":\"snapshot-1\""));
+}
+
+#[test]
+fn serializes_reload_request() {
+    let body = serde_json::to_string(&DaemonRequest::ReloadConfig).expect("serialize request");
+
+    assert!(body.contains("\"kind\":\"reload-config\""));
 }
 
 #[test]
@@ -271,5 +283,63 @@ collection = "rarag_chunks"
     let shutdown = send_request(&socket_path, &DaemonRequest::Shutdown);
     assert!(matches!(shutdown, DaemonResponse::Ack));
     let status = child.wait().expect("wait for daemon");
+    assert!(status.success(), "daemon exited with {status}");
+}
+
+#[test]
+fn reload_failure_keeps_old_config() {
+    let dir = tempdir().expect("tempdir");
+    let socket_path = dir.path().join("raragd.sock");
+    let config_path = dir.path().join("rarag.toml");
+    std::fs::write(
+        &config_path,
+        r#"
+[observability]
+enabled = false
+verbosity = "off"
+"#,
+    )
+    .expect("write config");
+    let mut daemon = spawn_daemon_with_args(
+        &socket_path,
+        &["--config", config_path.to_str().expect("config path")],
+    );
+
+    std::fs::write(
+        &config_path,
+        r#"
+[observability
+enabled = true
+"#,
+    )
+    .expect("write invalid config");
+
+    let response = send_request(&socket_path, &DaemonRequest::ReloadConfig);
+    match response {
+        DaemonResponse::Error(error) => {
+            assert!(
+                error.message.contains("failed to parse config"),
+                "unexpected error: {}",
+                error.message
+            );
+        }
+        other => panic!("unexpected reload response: {other:?}"),
+    }
+
+    let status_response = send_request(
+        &socket_path,
+        &DaemonRequest::Status {
+            snapshot_id: None,
+            worktree_root: Some("/repo/.worktrees/reload-still-alive".to_string()),
+        },
+    );
+    assert!(
+        matches!(status_response, DaemonResponse::Status(_)),
+        "unexpected status response after failed reload: {status_response:?}"
+    );
+
+    let shutdown = send_request(&socket_path, &DaemonRequest::Shutdown);
+    assert!(matches!(shutdown, DaemonResponse::Ack));
+    let status = daemon.wait().expect("wait for daemon");
     assert!(status.success(), "daemon exited with {status}");
 }

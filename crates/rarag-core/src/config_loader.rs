@@ -6,9 +6,20 @@ use serde::Deserialize;
 use crate::config::{AppConfig, CliConfig, DaemonConfig, McpConfig};
 
 pub fn load_app_config(explicit_path: Option<&Path>) -> Result<AppConfig, String> {
-    let mut config = AppConfig::default();
+    load_app_config_with_source(explicit_path).map(|loaded| loaded.config)
+}
 
-    if let Some(path) = resolve_config_path(explicit_path) {
+#[derive(Debug, Clone)]
+pub struct LoadedAppConfig {
+    pub config: AppConfig,
+    pub source_path: Option<PathBuf>,
+}
+
+pub fn load_app_config_with_source(explicit_path: Option<&Path>) -> Result<LoadedAppConfig, String> {
+    let mut config = AppConfig::default();
+    let source_path = resolve_config_path(explicit_path);
+
+    if let Some(path) = source_path.as_ref() {
         let body = std::fs::read_to_string(&path)
             .map_err(|err| format!("failed to read config {}: {err}", path.display()))?;
         let overrides: PartialAppConfig = toml::from_str(&body)
@@ -16,7 +27,10 @@ pub fn load_app_config(explicit_path: Option<&Path>) -> Result<AppConfig, String
         apply_overrides(&mut config, overrides);
     }
 
-    Ok(config)
+    Ok(LoadedAppConfig {
+        config,
+        source_path,
+    })
 }
 
 fn resolve_config_path(explicit_path: Option<&Path>) -> Option<PathBuf> {
