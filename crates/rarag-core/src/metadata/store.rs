@@ -236,8 +236,8 @@ impl SnapshotStore {
         for candidate in candidates {
             let evidence_json =
                 encode_string_list(&candidate.evidence).map_err(|err| err.to_string())?;
-            let retrieval_markers_json = encode_string_list(&candidate.retrieval_markers)
-                .map_err(|err| err.to_string())?;
+            let retrieval_markers_json =
+                encode_string_list(&candidate.retrieval_markers).map_err(|err| err.to_string())?;
             tx.execute(
                     "INSERT INTO candidate_observations (observation_id, rank, chunk_id, chunk_kind, symbol_path, file_path, evidence, retrieval_markers, returned, matched_worktree, base_score, query_mode_bias, worktree_diff_bias, final_score) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
                     (
@@ -282,8 +282,7 @@ impl SnapshotStore {
         let mut observations = Vec::new();
         while let Some(row) = rows.next().await.map_err(|err| err.to_string())? {
             let retrieval_json = text_at(&row, 8)?;
-            let retrieval =
-                serde_json::from_str(&retrieval_json).map_err(|err| err.to_string())?;
+            let retrieval = serde_json::from_str(&retrieval_json).map_err(|err| err.to_string())?;
             let enabled: i64 = row.get(9).map_err(|err| err.to_string())?;
             observations.push(QueryObservationRecord {
                 observation_id: text_at(&row, 0)?,
@@ -293,15 +292,12 @@ impl SnapshotStore {
                 symbol_path: optional_text_at(&row, 4)?,
                 changed_paths: decode_string_list(&text_at(&row, 5)?)
                     .map_err(|err| err.to_string())?,
-                warnings: decode_string_list(&text_at(&row, 6)?)
-                    .map_err(|err| err.to_string())?,
+                warnings: decode_string_list(&text_at(&row, 6)?).map_err(|err| err.to_string())?,
                 result_count: u64_at(&row, 7)?,
                 retrieval,
                 observability: crate::config::ObservabilityConfig {
                     enabled: enabled != 0,
-                    verbosity: text_at(&row, 10)?
-                        .parse()
-                        .map_err(|err: String| err)?,
+                    verbosity: text_at(&row, 10)?.parse().map_err(|err: String| err)?,
                 },
             });
         }

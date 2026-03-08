@@ -1,5 +1,6 @@
 mod cli;
 mod client;
+mod services;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -27,32 +28,59 @@ fn main() {
         config.daemon_socket_path(),
         config.cli_default_json(),
     ) {
-        Ok(command) => {
-            if command.dry_run {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&command.request).expect("serialize request")
-                );
-                return;
-            }
+        Ok(command) => match &command.action {
+            cli::CliAction::DaemonRequest(request) => {
+                if command.dry_run {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(request).expect("serialize request")
+                    );
+                    return;
+                }
 
-            match client::send_request(&command.socket_path, &command.request) {
-                Ok(response) => {
-                    if command.json {
-                        println!(
-                            "{}",
-                            serde_json::to_string_pretty(&response).expect("serialize response")
-                        );
-                    } else {
-                        print_human(&response);
+                match client::send_request(&command.socket_path, request) {
+                    Ok(response) => {
+                        if command.json {
+                            println!(
+                                "{}",
+                                serde_json::to_string_pretty(&response)
+                                    .expect("serialize response")
+                            );
+                        } else {
+                            print_human(&response);
+                        }
+                    }
+                    Err(err) => {
+                        eprintln!("{err}");
+                        std::process::exit(1);
                     }
                 }
-                Err(err) => {
-                    eprintln!("{err}");
-                    std::process::exit(1);
+            }
+            cli::CliAction::Service(service_command) => {
+                let result = if command.dry_run {
+                    services::plan(service_command)
+                } else {
+                    services::execute(service_command)
+                };
+                match result {
+                    Ok(report) => {
+                        if command.json {
+                            println!(
+                                "{}",
+                                serde_json::to_string_pretty(&report)
+                                    .expect("serialize service report")
+                            );
+                        } else {
+                            services::print_human(&report);
+                        }
+                    }
+                    Err(err) => {
+                        eprintln!("{err}");
+                        std::process::exit(1);
+                    }
                 }
             }
-        }
+        },
         Err(err) => {
             eprintln!("{err}");
             print_help();
@@ -65,6 +93,17 @@ fn print_help() {
     println!("rarag cli");
     println!("Usage:");
     println!("  rarag [--help] [--config <path>] [--print-config]");
+    println!("  rarag service install [--force] [--json] [--dry-run-request]");
+    println!(
+        "  rarag service start [--service <raragd|rarag-mcp|all>] [--json] [--dry-run-request]"
+    );
+    println!(
+        "  rarag service stop [--service <raragd|rarag-mcp|all>] [--json] [--dry-run-request]"
+    );
+    println!(
+        "  rarag service restart [--service <raragd|rarag-mcp|all>] [--json] [--dry-run-request]"
+    );
+    println!("  rarag service reload [--service <raragd|all>] [--json] [--dry-run-request]");
     println!(
         "  rarag status [--socket <path>] [--snapshot-id <id> | --worktree-root <path>] [--json]"
     );

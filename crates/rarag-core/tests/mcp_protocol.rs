@@ -7,9 +7,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use rarag_core::daemon::DaemonRequest;
-use rarag_core::ipc::{
-    LOCAL_IPC_MAX_MESSAGE_BYTES, read_framed_message, write_framed_message,
-};
+use rarag_core::ipc::{LOCAL_IPC_MAX_MESSAGE_BYTES, read_framed_message, write_framed_message};
 use rarag_core::snapshot::SnapshotKey;
 use serde_json::{Value, json};
 use tempfile::tempdir;
@@ -373,7 +371,10 @@ fn times_out_incomplete_socket_request() {
         .expect("write partial json");
     let response = raw_json_response(&mut stream).expect("read timeout response");
     assert!(
-        response["error"].as_str().unwrap_or_default().contains("timed out"),
+        response["error"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("timed out"),
         "response was: {response}"
     );
 
@@ -445,7 +446,10 @@ fn times_out_slow_drip_socket_request() {
     writer_handle.join().expect("join slow writer");
 
     assert!(
-        response["error"].as_str().unwrap_or_default().contains("timed out"),
+        response["error"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("timed out"),
         "response was: {response}"
     );
     assert!(

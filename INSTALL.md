@@ -86,10 +86,17 @@ rarag daemon reload --json
 Use this path if you want `raragd` and `rarag-mcp` managed as user services.
 
 1. Follow Path A steps 1-3 first.
-2. Follow `docs/ops/systemd-user.md` to install and enable user units.
-3. Verify services:
+2. Install and enable units with porcelain:
 
 ```bash
+rarag service install
+```
+
+3. Follow `docs/ops/systemd-user.md` for day-2 operations and troubleshooting.
+4. Verify services:
+
+```bash
+rarag service start --service all --dry-run-request
 systemctl --user status raragd.service
 systemctl --user status rarag-mcp.service
 rarag status --worktree "$PWD" --json
@@ -130,6 +137,7 @@ Use help output as the canonical command surface:
 ```bash
 rarag --help
 rarag daemon reload --help
+rarag service reload --help
 rarag index --help
 rarag query --help
 raragd --help

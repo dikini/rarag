@@ -203,6 +203,39 @@ fn cli_supports_reload_dry_run() {
 }
 
 #[test]
+fn cli_supports_service_reload_dry_run() {
+    let stdout = run_cli(&["service", "reload", "--dry-run-request"]);
+    assert!(stdout.contains("systemctl --user kill -s HUP raragd.service"));
+}
+
+#[test]
+fn cli_rejects_service_reload_for_mcp_target() {
+    let output = Command::new(ensure_binary("rarag"))
+        .args(["service", "reload", "--service", "rarag-mcp"])
+        .output()
+        .expect("run cli");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).expect("utf8 stderr");
+    assert!(stderr.contains("reload only supports raragd or all"));
+}
+
+#[test]
+fn cli_supports_service_start_all_dry_run() {
+    let stdout = run_cli(&["service", "start", "--dry-run-request"]);
+    assert!(stdout.contains("systemctl --user start raragd.service"));
+    assert!(stdout.contains("systemctl --user start rarag-mcp.service"));
+}
+
+#[test]
+fn cli_supports_service_install_dry_run() {
+    let stdout = run_cli(&["service", "install", "--dry-run-request"]);
+    assert!(stdout.contains("systemctl --user daemon-reload"));
+    assert!(stdout.contains("systemctl --user enable --now raragd.service"));
+    assert!(stdout.contains("systemctl --user enable --now rarag-mcp.service"));
+}
+
+#[test]
 fn mcp_tool_names_match_contract() {
     let output = Command::new(ensure_binary("rarag-mcp"))
         .arg("--list-tools")

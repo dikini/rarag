@@ -28,6 +28,14 @@ rarag index build --worktree "$PWD"
 rarag query --worktree "$PWD" --mode understand-symbol --text "snapshot store"
 ```
 
+User-service porcelain:
+
+```bash
+rarag service install
+rarag service restart --service all
+rarag service reload
+```
+
 ## Start Here
 
 - Install and local setup: `INSTALL.md`

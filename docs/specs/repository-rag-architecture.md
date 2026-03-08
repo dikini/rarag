@@ -197,6 +197,11 @@ Required commands:
 - `rarag blast-radius`
 - `rarag doctor`
 - `rarag daemon reload`
+- `rarag service install`
+- `rarag service start`
+- `rarag service stop`
+- `rarag service restart`
+- `rarag service reload`
 
 Required flags:
 
@@ -259,6 +264,7 @@ All paths must be overridable by config or CLI flags.
 
 - `raragd` must support configuration reload via `SIGHUP`.
 - The daemon must also expose an explicit admin reload request so CLI and MCP callers can trigger the same behavior safely.
+- `rarag service reload` must target daemon `SIGHUP` behavior; MCP service reload is intentionally unsupported.
 - Reload must be validate-then-swap:
   - parse candidate config
   - validate it

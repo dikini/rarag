@@ -5,8 +5,7 @@ use std::time::Instant;
 
 use rarag_core::daemon::{DaemonRequest, QueryPayload};
 use rarag_core::ipc::{
-    LOCAL_IPC_MAX_MESSAGE_BYTES, LOCAL_IPC_READ_TIMEOUT, read_framed_message,
-    write_framed_message,
+    LOCAL_IPC_MAX_MESSAGE_BYTES, LOCAL_IPC_READ_TIMEOUT, read_framed_message, write_framed_message,
 };
 use rarag_core::retrieval::QueryMode;
 use rarag_core::unix_socket::prepare_socket_path;

@@ -1,7 +1,7 @@
 mod store;
 
-use crate::config::{ObservabilityConfig, RetrievalConfig};
 use crate::chunking::Chunk;
+use crate::config::{ObservabilityConfig, RetrievalConfig};
 use crate::semantic::{SemanticEdge, SemanticEdgeKind};
 use crate::snapshot::SnapshotKey;
 use serde::{Deserialize, Serialize};

@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use rarag_core::chunking::RustChunker;
 use rarag_core::config::AppConfig;
+use rarag_core::config_loader::load_app_config_with_source;
 use rarag_core::daemon::{
     DaemonRequest, DaemonResponse, IndexResponse, QueryPayload, ReloadResponse, StatusPayload,
 };
@@ -12,12 +13,11 @@ use rarag_core::embeddings::{
 use rarag_core::indexing::{ChunkIndexer, QdrantPointStore, TantivyChunkStore};
 use rarag_core::metadata::SnapshotStore;
 use rarag_core::retrieval::{QueryMode, RepositoryRetriever};
-use rarag_core::config_loader::load_app_config_with_source;
 use rarag_core::unix_socket::{prepare_socket_path, remove_socket_if_present};
 use tokio::net::UnixListener;
-use tokio::sync::Mutex;
 #[cfg(unix)]
 use tokio::signal::unix::{SignalKind, signal};
+use tokio::sync::Mutex;
 
 use crate::config::ServeConfig;
 use crate::transport::{error_response, read_request, write_response};

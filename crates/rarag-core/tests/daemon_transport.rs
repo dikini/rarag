@@ -7,9 +7,7 @@ use std::time::{Duration, Instant};
 use std::{io::Cursor, iter};
 
 use rarag_core::daemon::{DaemonRequest, DaemonResponse, QueryPayload};
-use rarag_core::ipc::{
-    DAEMON_MAX_MESSAGE_BYTES, read_framed_message, write_framed_message,
-};
+use rarag_core::ipc::{DAEMON_MAX_MESSAGE_BYTES, read_framed_message, write_framed_message};
 use rarag_core::retrieval::QueryMode;
 use rarag_core::snapshot::SnapshotKey;
 use tempfile::tempdir;

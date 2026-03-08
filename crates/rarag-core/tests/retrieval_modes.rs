@@ -137,13 +137,9 @@ fn caps_neighborhood_size_by_mode() {
         let retriever = RepositoryRetriever::new(&metadata, &tantivy, &qdrant, &provider);
         let response = retriever
             .retrieve(
-                RetrievalRequest::new(
-                    snapshot_id,
-                    QueryMode::UnderstandSymbol,
-                    "example_sum",
-                )
-                .with_symbol_path("mini_repo::example_sum")
-                .with_limit(20),
+                RetrievalRequest::new(snapshot_id, QueryMode::UnderstandSymbol, "example_sum")
+                    .with_symbol_path("mini_repo::example_sum")
+                    .with_limit(20),
             )
             .await
             .expect("retrieve");
@@ -203,13 +199,9 @@ fn results_never_cross_snapshot_boundary() {
         let retriever = RepositoryRetriever::new(&metadata, &tantivy, &qdrant, &provider);
         let response = retriever
             .retrieve(
-                RetrievalRequest::new(
-                    snapshot_a.id.clone(),
-                    QueryMode::BlastRadius,
-                    "example_sum",
-                )
-                .with_symbol_path("mini_repo::example_sum")
-                .with_limit(12),
+                RetrievalRequest::new(snapshot_a.id.clone(), QueryMode::BlastRadius, "example_sum")
+                    .with_symbol_path("mini_repo::example_sum")
+                    .with_limit(12),
             )
             .await
             .expect("retrieve");
@@ -261,12 +253,8 @@ fn falls_back_to_lexical_bm25_when_symbol_path_is_missing() {
         let retriever = RepositoryRetriever::new(&metadata, &tantivy, &qdrant, &provider);
         let response = retriever
             .retrieve(
-                RetrievalRequest::new(
-                    snapshot_id,
-                    QueryMode::FindExamples,
-                    "oversized_example",
-                )
-                .with_limit(6),
+                RetrievalRequest::new(snapshot_id, QueryMode::FindExamples, "oversized_example")
+                    .with_limit(6),
             )
             .await
             .expect("retrieve");
@@ -313,9 +301,13 @@ fn observation_capture_does_not_change_ranked_results() {
         let (snapshot_id, _dir, metadata, tantivy, qdrant, provider) = build_retriever().await;
         let baseline = RepositoryRetriever::new(&metadata, &tantivy, &qdrant, &provider)
             .retrieve(
-                RetrievalRequest::new(snapshot_id.clone(), QueryMode::UnderstandSymbol, "example_sum")
-                    .with_symbol_path("mini_repo::example_sum")
-                    .with_limit(6),
+                RetrievalRequest::new(
+                    snapshot_id.clone(),
+                    QueryMode::UnderstandSymbol,
+                    "example_sum",
+                )
+                .with_symbol_path("mini_repo::example_sum")
+                .with_limit(6),
             )
             .await
             .expect("baseline retrieve");
@@ -386,7 +378,11 @@ fn detailed_observation_captures_candidate_features() {
 
         assert!(!candidates.is_empty());
         assert!(candidates.iter().any(|candidate| candidate.returned));
-        assert!(candidates.iter().all(|candidate| candidate.final_score >= candidate.base_score));
+        assert!(
+            candidates
+                .iter()
+                .all(|candidate| candidate.final_score >= candidate.base_score)
+        );
         assert!(candidates.iter().any(|candidate| {
             candidate
                 .evidence

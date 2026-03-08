@@ -15,7 +15,9 @@ pub struct LoadedAppConfig {
     pub source_path: Option<PathBuf>,
 }
 
-pub fn load_app_config_with_source(explicit_path: Option<&Path>) -> Result<LoadedAppConfig, String> {
+pub fn load_app_config_with_source(
+    explicit_path: Option<&Path>,
+) -> Result<LoadedAppConfig, String> {
     let mut config = AppConfig::default();
     let source_path = resolve_config_path(explicit_path);
 

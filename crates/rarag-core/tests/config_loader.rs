@@ -170,8 +170,5 @@ verbosity = "summary"
         8.8
     );
     assert!(config.observability.enabled);
-    assert_eq!(
-        config.observability.verbosity.to_string(),
-        "summary"
-    );
+    assert_eq!(config.observability.verbosity.to_string(), "summary");
 }

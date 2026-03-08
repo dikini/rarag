@@ -1,8 +1,8 @@
 use std::env;
-use std::str::FromStr;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use std::fmt;
 

@@ -173,7 +173,12 @@ mod tests {
         );
 
         assert_eq!(candidates[0].score, 10.0);
-        assert!(candidates[0].evidence.iter().any(|item| item == "exact_symbol"));
+        assert!(
+            candidates[0]
+                .evidence
+                .iter()
+                .any(|item| item == "exact_symbol")
+        );
     }
 
     #[test]
@@ -198,7 +203,12 @@ mod tests {
             .find(|candidate| candidate.chunk.chunk_id == neighbor.chunk_id)
             .expect("semantic impl candidate");
         assert_eq!(candidate.score, 42.0);
-        assert!(candidate.evidence.iter().any(|item| item == "semantic_impl"));
+        assert!(
+            candidate
+                .evidence
+                .iter()
+                .any(|item| item == "semantic_impl")
+        );
     }
 }
 

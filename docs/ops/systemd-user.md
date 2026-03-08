@@ -66,22 +66,22 @@ WantedBy=default.target
 ## Install and Enable
 
 ```bash
-mkdir -p ~/.config/systemd/user
-# place the two unit files shown above
-systemctl --user daemon-reload
-systemctl --user enable --now raragd.service
-systemctl --user enable --now rarag-mcp.service
+rarag service install
 ```
+
+Notes:
+- install is idempotent for already-matching managed units
+- use `rarag service install --force` to overwrite drifted managed units
+- unmanaged existing unit files are never overwritten
 
 ## Day-2 Operations
 
 ```bash
 systemctl --user status raragd.service
 systemctl --user status rarag-mcp.service
-systemctl --user restart raragd.service
-systemctl --user restart rarag-mcp.service
-systemctl --user stop rarag-mcp.service
-systemctl --user start rarag-mcp.service
+rarag service restart --service all
+rarag service stop --service rarag-mcp
+rarag service start --service rarag-mcp
 ```
 
 Logs:
@@ -96,7 +96,7 @@ journalctl --user -u rarag-mcp.service -f
 Prefer daemon reload for config-only changes:
 
 ```bash
-rarag daemon reload --json
+rarag service reload --json
 ```
 
 Equivalent signal path:
@@ -130,8 +130,7 @@ rarag-mcp --list-tools
 
 ```bash
 systemctl --user daemon-reload
-systemctl --user restart raragd.service
-systemctl --user restart rarag-mcp.service
+rarag service restart --service all
 rarag status --worktree "$PWD" --json
 ```
 

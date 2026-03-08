@@ -177,7 +177,10 @@ fn records_and_loads_query_observations() {
                 "find-examples",
                 "example_sum",
                 Some("mini_repo::example_sum".to_string()),
-                vec!["src/lib.rs".to_string(), "src/path,with,comma.rs".to_string()],
+                vec![
+                    "src/lib.rs".to_string(),
+                    "src/path,with,comma.rs".to_string(),
+                ],
                 vec![
                     "warning".to_string(),
                     "provider said: keep,trim,rank".to_string(),

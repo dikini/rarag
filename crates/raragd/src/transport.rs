@@ -1,7 +1,6 @@
 use rarag_core::daemon::{DaemonRequest, DaemonResponse, ErrorResponse};
 use rarag_core::ipc::{
-    DAEMON_MAX_MESSAGE_BYTES, DAEMON_READ_TIMEOUT, decode_bounded_frame_len,
-    encode_framed_message,
+    DAEMON_MAX_MESSAGE_BYTES, DAEMON_READ_TIMEOUT, decode_bounded_frame_len, encode_framed_message,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;

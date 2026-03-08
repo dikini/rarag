@@ -20,9 +20,10 @@ async fn main() {
             println!("socket_path={}", config.daemon_socket_path());
         }
         Command::Serve(serve) => {
-            let loaded =
-                rarag_core::config_loader::load_app_config_with_source(serve.config_path.as_deref())
-                    .expect("load app config");
+            let loaded = rarag_core::config_loader::load_app_config_with_source(
+                serve.config_path.as_deref(),
+            )
+            .expect("load app config");
             if let Err(err) = server::serve(loaded.config, loaded.source_path, serve).await {
                 eprintln!("{err}");
                 std::process::exit(1);

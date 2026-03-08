@@ -6,10 +6,37 @@ use rarag_core::snapshot::SnapshotKey;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CliCommand {
-    pub request: DaemonRequest,
+    pub action: CliAction,
     pub socket_path: PathBuf,
     pub json: bool,
     pub dry_run: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CliAction {
+    DaemonRequest(DaemonRequest),
+    Service(ServiceCommand),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServiceCommand {
+    pub operation: ServiceOperation,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ServiceOperation {
+    Install { force: bool },
+    Start { target: ServiceTarget },
+    Stop { target: ServiceTarget },
+    Restart { target: ServiceTarget },
+    Reload { target: ServiceTarget },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServiceTarget {
+    All,
+    Daemon,
+    Mcp,
 }
 
 pub fn parse_command(
@@ -27,17 +54,25 @@ pub fn parse_command(
 
     match (primary, secondary) {
         (Some("daemon"), Some("reload")) => Ok(CliCommand {
-            request: DaemonRequest::ReloadConfig,
+            action: CliAction::DaemonRequest(DaemonRequest::ReloadConfig),
+            socket_path,
+            json,
+            dry_run,
+        }),
+        (Some("service"), Some(subcommand)) => Ok(CliCommand {
+            action: CliAction::Service(ServiceCommand {
+                operation: parse_service_operation(subcommand, args)?,
+            }),
             socket_path,
             json,
             dry_run,
         }),
         (Some("status"), _) | (Some("index"), Some("status")) | (Some("doctor"), _) => {
             Ok(CliCommand {
-                request: DaemonRequest::Status {
+                action: CliAction::DaemonRequest(DaemonRequest::Status {
                     snapshot_id: locator_option(args, "--snapshot-id", "--snapshot"),
                     worktree_root: locator_option(args, "--worktree-root", "--worktree"),
-                },
+                }),
                 socket_path,
                 json,
                 dry_run,
@@ -47,7 +82,7 @@ pub fn parse_command(
             if index_build_compat_mode(secondary) =>
         {
             Ok(CliCommand {
-                request: DaemonRequest::IndexWorkspace {
+                action: CliAction::DaemonRequest(DaemonRequest::IndexWorkspace {
                     snapshot: SnapshotKey::new(
                         required_option(args, "--repo-root")?,
                         required_option_alias(args, "--worktree-root", "--worktree")?,
@@ -68,38 +103,42 @@ pub fn parse_command(
                         .unwrap_or("80")
                         .parse()
                         .map_err(|err| format!("invalid --max-body-bytes: {err}"))?,
-                },
+                }),
                 socket_path,
                 json,
                 dry_run,
             })
         }
         (Some("query"), _) => Ok(CliCommand {
-            request: DaemonRequest::Query(parse_query_payload(args, false)?),
+            action: CliAction::DaemonRequest(DaemonRequest::Query(parse_query_payload(
+                args, false,
+            )?)),
             socket_path,
             json,
             dry_run,
         }),
         (Some("symbol"), _) => Ok(CliCommand {
-            request: DaemonRequest::Query(parse_named_query_payload(
+            action: CliAction::DaemonRequest(DaemonRequest::Query(parse_named_query_payload(
                 args,
                 QueryMode::UnderstandSymbol,
-            )?),
+            )?)),
             socket_path,
             json,
             dry_run,
         }),
         (Some("examples"), _) => Ok(CliCommand {
-            request: DaemonRequest::Query(parse_named_query_payload(
+            action: CliAction::DaemonRequest(DaemonRequest::Query(parse_named_query_payload(
                 args,
                 QueryMode::FindExamples,
-            )?),
+            )?)),
             socket_path,
             json,
             dry_run,
         }),
         (Some("blast-radius"), _) => Ok(CliCommand {
-            request: DaemonRequest::BlastRadius(parse_query_payload(args, true)?),
+            action: CliAction::DaemonRequest(DaemonRequest::BlastRadius(parse_query_payload(
+                args, true,
+            )?)),
             socket_path,
             json,
             dry_run,
@@ -196,4 +235,92 @@ fn index_build_compat_mode(secondary: Option<&str>) -> bool {
     secondary.is_none()
         || secondary == Some("build")
         || secondary.is_some_and(|flag| flag.starts_with('-'))
+}
+
+fn parse_service_operation(subcommand: &str, args: &[String]) -> Result<ServiceOperation, String> {
+    match subcommand {
+        "install" => Ok(ServiceOperation::Install {
+            force: args.iter().any(|arg| arg == "--force"),
+        }),
+        "start" => Ok(ServiceOperation::Start {
+            target: parse_service_target(args)?,
+        }),
+        "stop" => Ok(ServiceOperation::Stop {
+            target: parse_service_target(args)?,
+        }),
+        "restart" => Ok(ServiceOperation::Restart {
+            target: parse_service_target(args)?,
+        }),
+        "reload" => {
+            let target = parse_service_target(args)?;
+            if target == ServiceTarget::Mcp {
+                return Err("reload only supports raragd or all".to_string());
+            }
+            Ok(ServiceOperation::Reload { target })
+        }
+        _ => Err(format!("unsupported service command {subcommand}")),
+    }
+}
+
+fn parse_service_target(args: &[String]) -> Result<ServiceTarget, String> {
+    match option_value(args, "--service").as_deref() {
+        None | Some("all") => Ok(ServiceTarget::All),
+        Some("raragd") => Ok(ServiceTarget::Daemon),
+        Some("rarag-mcp") => Ok(ServiceTarget::Mcp),
+        Some(other) => Err(format!("unsupported --service value {other}")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| value.to_string()).collect()
+    }
+
+    #[test]
+    fn parses_service_install_force() {
+        let parsed = parse_command(
+            &args(&["rarag", "service", "install", "--force"]),
+            "/tmp/raragd.sock",
+            false,
+        )
+        .expect("parse command");
+        assert_eq!(
+            parsed.action,
+            CliAction::Service(ServiceCommand {
+                operation: ServiceOperation::Install { force: true },
+            })
+        );
+    }
+
+    #[test]
+    fn parses_service_start_default_target_all() {
+        let parsed = parse_command(
+            &args(&["rarag", "service", "start"]),
+            "/tmp/raragd.sock",
+            false,
+        )
+        .expect("parse command");
+        assert_eq!(
+            parsed.action,
+            CliAction::Service(ServiceCommand {
+                operation: ServiceOperation::Start {
+                    target: ServiceTarget::All
+                },
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_reload_for_mcp_target() {
+        let err = parse_command(
+            &args(&["rarag", "service", "reload", "--service", "rarag-mcp"]),
+            "/tmp/raragd.sock",
+            false,
+        )
+        .expect_err("parse error");
+        assert!(err.contains("reload only supports raragd or all"));
+    }
 }
