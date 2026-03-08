@@ -266,7 +266,15 @@ fn send_daemon_request(
 }
 
 fn read_request_value(stream: &mut UnixStream) -> Result<Value, String> {
-    let deadline = Instant::now() + LOCAL_IPC_READ_TIMEOUT;
+    read_request_value_with_limits(stream, LOCAL_IPC_MAX_MESSAGE_BYTES, LOCAL_IPC_READ_TIMEOUT)
+}
+
+fn read_request_value_with_limits(
+    stream: &mut UnixStream,
+    max_message_bytes: usize,
+    read_timeout: std::time::Duration,
+) -> Result<Value, String> {
+    let deadline = Instant::now() + read_timeout;
     let mut body = Vec::new();
     let mut chunk = [0_u8; 4096];
     loop {
@@ -281,10 +289,10 @@ fn read_request_value(stream: &mut UnixStream) -> Result<Value, String> {
             Ok(0) => return serde_json::from_slice(&body).map_err(|err| err.to_string()),
             Ok(read) => {
                 body.extend_from_slice(&chunk[..read]);
-                if body.len() > LOCAL_IPC_MAX_MESSAGE_BYTES {
+                if body.len() > max_message_bytes {
                     return Err(format!(
-                        "mcp request too large: {} bytes exceeds limit {LOCAL_IPC_MAX_MESSAGE_BYTES}",
-                        body.len()
+                        "mcp request too large: {} bytes exceeds limit {max_message_bytes}",
+                        body.len(),
                     ));
                 }
                 match serde_json::from_slice(&body) {
@@ -316,4 +324,28 @@ pub fn daemon_socket_from_args(args: &[String], default_socket: &str) -> PathBuf
         .find(|window| window[0] == "--daemon-socket")
         .map(|window| PathBuf::from(&window[1]))
         .unwrap_or_else(|| PathBuf::from(default_socket))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::read_request_value_with_limits;
+    use std::io::Write;
+    use std::os::unix::net::UnixStream;
+    use std::time::Duration;
+
+    #[test]
+    fn request_size_limit_rejects_oversized_incomplete_json() {
+        let (mut reader, mut writer) = UnixStream::pair().expect("unix stream pair");
+        writer
+            .write_all(b"[                                ")
+            .expect("write oversized incomplete payload");
+        writer
+            .shutdown(std::net::Shutdown::Write)
+            .expect("shutdown writer");
+
+        let err =
+            read_request_value_with_limits(&mut reader, 16, Duration::from_secs(5)).unwrap_err();
+
+        assert!(err.contains("too large"), "error was: {err}");
+    }
 }
