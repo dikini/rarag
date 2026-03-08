@@ -18,9 +18,9 @@ jobs:
         uses: taiki-e/install-action@just
 
       - name: Install actionlint
-        uses: taiki-e/install-action@v2
-        with:
-          tool: actionlint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash \
+            | bash -s -- -b /usr/local/bin
 
       - name: Install shell quality tools
         run: |

@@ -37,7 +37,7 @@ The format is based on Common Changelog:
 
 ### Fixed
 
-- Fixed the `policy-checks` GitHub Actions workflow to install `actionlint` via `taiki-e/install-action@v2` with `tool: actionlint`, replacing invalid action references.
+- Fixed the `policy-checks` GitHub Actions workflow to install `actionlint` via the official `rhysd/actionlint` download script, replacing invalid action references.
 - Fixed `rarag service install` unit generation to resolve `raragd` and `rarag-mcp` executable paths from the installed CLI location (with `$PATH` fallback) and to use the active resolved config path instead of hardcoded `~/.cargo/bin` and `~/.config/rarag/rarag.toml` assumptions.
 - Fixed local Unix-socket hardening so daemon and MCP request reads are size-bounded and time-limited, and so socket startup no longer tightens permissions on pre-existing parent directories.
 - Fixed daemon framed-response decoding so valid query payloads larger than the inbound request ceiling still round-trip through the CLI and MCP daemon clients.
