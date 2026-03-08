@@ -4,9 +4,11 @@ use std::path::Path;
 
 pub fn prepare_socket_path(socket_path: &Path) -> Result<(), String> {
     if let Some(parent) = socket_path.parent() {
-        std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
-        std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))
-            .map_err(|err| err.to_string())?;
+        let created_parent = ensure_private_runtime_dir(parent)?;
+        if created_parent {
+            std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))
+                .map_err(|err| err.to_string())?;
+        }
     }
 
     if !socket_path.exists() {
@@ -23,6 +25,14 @@ pub fn prepare_socket_path(socket_path: &Path) -> Result<(), String> {
         "refusing to remove non-socket path {}",
         socket_path.display()
     ))
+}
+
+fn ensure_private_runtime_dir(path: &Path) -> Result<bool, String> {
+    if path.is_dir() {
+        return Ok(false);
+    }
+    std::fs::create_dir_all(path).map_err(|err| err.to_string())?;
+    Ok(true)
 }
 
 pub fn remove_socket_if_present(socket_path: &Path) -> Result<(), String> {
@@ -99,5 +109,24 @@ mod tests {
             .mode()
             & 0o777;
         assert_eq!(mode, 0o700);
+    }
+
+    #[test]
+    fn preserves_existing_parent_directory_permissions() {
+        let dir = tempdir().expect("tempdir");
+        let runtime_dir = dir.path().join("runtime");
+        std::fs::create_dir(&runtime_dir).expect("create runtime dir");
+        std::fs::set_permissions(&runtime_dir, std::fs::Permissions::from_mode(0o755))
+            .expect("chmod runtime dir");
+        let socket_path = runtime_dir.join("rarag.sock");
+
+        prepare_socket_path(&socket_path).expect("prepare socket path");
+
+        let mode = std::fs::metadata(&runtime_dir)
+            .expect("runtime metadata")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o755);
     }
 }

@@ -206,8 +206,15 @@ impl SnapshotStore {
     ) -> Result<(), String> {
         let retrieval_json =
             serde_json::to_string(&record.retrieval).map_err(|err| err.to_string())?;
-        self.connection
-            .execute(
+        let changed_paths_json =
+            encode_string_list(&record.changed_paths).map_err(|err| err.to_string())?;
+        let warnings_json = encode_string_list(&record.warnings).map_err(|err| err.to_string())?;
+        let tx = self
+            .connection
+            .unchecked_transaction()
+            .await
+            .map_err(|err| err.to_string())?;
+        tx.execute(
                 "INSERT INTO query_observations (observation_id, snapshot_id, query_mode, query_text, symbol_path, changed_paths, warnings, result_count, retrieval_config_json, observability_enabled, observability_verbosity) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
                 (
                     record.observation_id.as_str(),
@@ -215,8 +222,8 @@ impl SnapshotStore {
                     record.query_mode.as_str(),
                     record.query_text.as_str(),
                     record.symbol_path.as_deref(),
-                    join_csv(&record.changed_paths),
-                    join_csv(&record.warnings),
+                    changed_paths_json.as_str(),
+                    warnings_json.as_str(),
                     i64::try_from(record.result_count).map_err(|err| err.to_string())?,
                     retrieval_json.as_str(),
                     if record.observability.enabled { 1_i64 } else { 0_i64 },
@@ -227,8 +234,11 @@ impl SnapshotStore {
             .map_err(|err| err.to_string())?;
 
         for candidate in candidates {
-            self.connection
-                .execute(
+            let evidence_json =
+                encode_string_list(&candidate.evidence).map_err(|err| err.to_string())?;
+            let retrieval_markers_json = encode_string_list(&candidate.retrieval_markers)
+                .map_err(|err| err.to_string())?;
+            tx.execute(
                     "INSERT INTO candidate_observations (observation_id, rank, chunk_id, chunk_kind, symbol_path, file_path, evidence, retrieval_markers, returned, matched_worktree, base_score, query_mode_bias, worktree_diff_bias, final_score) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
                     (
                         candidate.observation_id.as_str(),
@@ -237,8 +247,8 @@ impl SnapshotStore {
                         candidate.chunk_kind.as_str(),
                         candidate.symbol_path.as_deref(),
                         candidate.file_path.as_str(),
-                        join_csv(&candidate.evidence),
-                        join_csv(&candidate.retrieval_markers),
+                        evidence_json.as_str(),
+                        retrieval_markers_json.as_str(),
                         if candidate.returned { 1_i64 } else { 0_i64 },
                         if candidate.matched_worktree { 1_i64 } else { 0_i64 },
                         f64::from(candidate.base_score),
@@ -250,6 +260,8 @@ impl SnapshotStore {
                 .await
                 .map_err(|err| err.to_string())?;
         }
+
+        tx.commit().await.map_err(|err| err.to_string())?;
 
         Ok(())
     }
@@ -279,8 +291,10 @@ impl SnapshotStore {
                 query_mode: text_at(&row, 2)?,
                 query_text: text_at(&row, 3)?,
                 symbol_path: optional_text_at(&row, 4)?,
-                changed_paths: split_csv(&text_at(&row, 5)?),
-                warnings: split_csv(&text_at(&row, 6)?),
+                changed_paths: decode_string_list(&text_at(&row, 5)?)
+                    .map_err(|err| err.to_string())?,
+                warnings: decode_string_list(&text_at(&row, 6)?)
+                    .map_err(|err| err.to_string())?,
                 result_count: u64_at(&row, 7)?,
                 retrieval,
                 observability: crate::config::ObservabilityConfig {
@@ -318,8 +332,9 @@ impl SnapshotStore {
                 chunk_kind: text_at(&row, 2)?,
                 symbol_path: optional_text_at(&row, 3)?,
                 file_path: text_at(&row, 4)?,
-                evidence: split_csv(&text_at(&row, 5)?),
-                retrieval_markers: split_csv(&text_at(&row, 6)?),
+                evidence: decode_string_list(&text_at(&row, 5)?).map_err(|err| err.to_string())?,
+                retrieval_markers: decode_string_list(&text_at(&row, 6)?)
+                    .map_err(|err| err.to_string())?,
                 rank: u32_at(&row, 7)?,
                 returned: returned != 0,
                 matched_worktree: matched_worktree != 0,
@@ -460,6 +475,17 @@ fn split_csv(value: &str) -> Vec<String> {
         .filter(|entry| !entry.is_empty())
         .map(ToString::to_string)
         .collect()
+}
+
+fn encode_string_list(values: &[String]) -> Result<String, serde_json::Error> {
+    serde_json::to_string(values)
+}
+
+fn decode_string_list(value: &str) -> Result<Vec<String>, serde_json::Error> {
+    if value.is_empty() {
+        return Ok(Vec::new());
+    }
+    serde_json::from_str(value)
 }
 
 async fn first_optional_u64(rows: &mut Rows) -> Result<Option<u64>, String> {

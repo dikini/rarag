@@ -28,6 +28,12 @@ The format is based on Common Changelog:
 - Added an opt-in `scripts/check-live-rag-stack.sh` pre-merge check for live OpenAI embeddings plus a real Qdrant endpoint.
 - Added `docs/ops/qdrant-runtime.md` to document Qdrant runtime setup for operators and developers.
 - Added a focused follow-up compatibility plan for bringing `main` into line with the canonical repository RAG spec around MCP transport, example/doctest indexing, and lexical schema coverage.
+
+### Fixed
+
+- Fixed local Unix-socket hardening so daemon and MCP request reads are size-bounded and time-limited, and so socket startup no longer tightens permissions on pre-existing parent directories.
+- Fixed daemon framed-response decoding so valid query payloads larger than the inbound request ceiling still round-trip through the CLI and MCP daemon clients.
+- Fixed MCP inbound request handling so the read deadline applies to the full request-assembly window, preventing slow-drip local clients from monopolizing the endpoint.
 - Added MCP protocol compatibility regressions, example/doctest chunking regressions, and rich Tantivy schema contract tests for the repository RAG compatibility work.
 
 ### Changed
@@ -48,6 +54,7 @@ The format is based on Common Changelog:
 ### Fixed
 
 - Fixed retrieval observability so it records ranked candidate features for eval generation without changing the returned top-N results, and so structured query logs still emit even if observation persistence fails.
+- Fixed observation persistence to store observation list fields losslessly and commit query plus candidate observation rows atomically, avoiding comma-corrupted eval data and per-candidate write amplification when observability is enabled.
 
 - Excluded local `target/` build artifacts from `scripts/init-from-backbone.sh` copies so starter repository initialization stays deterministic and does not pull developer build output into generated repos.
 - Fixed worktree-root snapshot resolution to select the latest snapshot instead of failing after repeated indexing, switched the operational vector store to endpoint-backed Qdrant with an explicit test-only in-memory fallback, and hardened Unix-socket cleanup to refuse non-socket paths.

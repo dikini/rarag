@@ -4,8 +4,12 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
+use std::{io::Cursor, iter};
 
 use rarag_core::daemon::{DaemonRequest, DaemonResponse, QueryPayload};
+use rarag_core::ipc::{
+    DAEMON_MAX_MESSAGE_BYTES, read_framed_message, write_framed_message,
+};
 use rarag_core::retrieval::QueryMode;
 use rarag_core::snapshot::SnapshotKey;
 use tempfile::tempdir;
@@ -25,13 +29,8 @@ fn fixture_root() -> PathBuf {
 fn send_request(socket_path: &Path, request: &DaemonRequest) -> DaemonResponse {
     let mut stream = UnixStream::connect(socket_path).expect("connect unix socket");
     let body = serde_json::to_vec(request).expect("serialize request");
-    stream.write_all(&body).expect("write request");
-    stream
-        .shutdown(std::net::Shutdown::Write)
-        .expect("shutdown write");
-
-    let mut response = Vec::new();
-    stream.read_to_end(&mut response).expect("read response");
+    write_framed_message(&mut stream, &body).expect("write framed request");
+    let response = read_framed_message(&mut stream).expect("read framed response");
     serde_json::from_slice(&response).expect("deserialize response")
 }
 
@@ -41,13 +40,8 @@ fn send_request_if_ready(
 ) -> Result<DaemonResponse, std::io::Error> {
     let mut stream = UnixStream::connect(socket_path)?;
     let body = serde_json::to_vec(request).expect("serialize request");
-    stream.write_all(&body).expect("write request");
-    stream
-        .shutdown(std::net::Shutdown::Write)
-        .expect("shutdown write");
-
-    let mut response = Vec::new();
-    stream.read_to_end(&mut response).expect("read response");
+    write_framed_message(&mut stream, &body).expect("write framed request");
+    let response = read_framed_message(&mut stream).expect("read framed response");
     Ok(serde_json::from_slice(&response).expect("deserialize response"))
 }
 
@@ -99,14 +93,17 @@ fn spawn_daemon_with_args(socket_path: &Path, extra_args: &[&str]) -> Child {
 
 #[test]
 fn serializes_unix_socket_requests() {
-    let body = serde_json::to_string(&DaemonRequest::Status {
+    let payload = serde_json::to_vec(&DaemonRequest::Status {
         snapshot_id: Some("snapshot-1".to_string()),
         worktree_root: None,
     })
     .expect("serialize request");
+    let mut framed = Vec::new();
+    framed.extend_from_slice(&(payload.len() as u32).to_be_bytes());
+    framed.extend_from_slice(&payload);
 
-    assert!(body.contains("\"kind\":\"status\""));
-    assert!(body.contains("\"snapshot_id\":\"snapshot-1\""));
+    assert_eq!(&framed[..4], &(payload.len() as u32).to_be_bytes());
+    assert_eq!(&framed[4..], payload.as_slice());
 }
 
 #[test]
@@ -114,6 +111,18 @@ fn serializes_reload_request() {
     let body = serde_json::to_string(&DaemonRequest::ReloadConfig).expect("serialize request");
 
     assert!(body.contains("\"kind\":\"reload-config\""));
+}
+
+#[test]
+fn read_framed_response_accepts_large_payload() {
+    let payload: Vec<u8> = iter::repeat_n(b'x', DAEMON_MAX_MESSAGE_BYTES + 1024).collect();
+    let framed = rarag_core::ipc::encode_framed_message(&payload).expect("encode large payload");
+    let mut reader = Cursor::new(framed);
+
+    let decoded = read_framed_message(&mut reader).expect("large framed response should decode");
+
+    assert_eq!(decoded.len(), payload.len());
+    assert_eq!(decoded, payload);
 }
 
 #[test]
@@ -189,6 +198,58 @@ fn daemon_roundtrip_serves_query_payload() {
     let shutdown = send_request(&socket_path, &DaemonRequest::Shutdown);
     assert!(matches!(shutdown, DaemonResponse::Ack));
 
+    let status = daemon.wait().expect("wait for daemon");
+    assert!(status.success(), "daemon exited with {status}");
+}
+
+#[test]
+fn rejects_oversized_requests() {
+    let dir = tempdir().expect("tempdir");
+    let socket_path = dir.path().join("raragd.sock");
+    let mut daemon = spawn_daemon(&socket_path);
+
+    let mut stream = UnixStream::connect(&socket_path).expect("connect unix socket");
+    let oversize = (DAEMON_MAX_MESSAGE_BYTES as u32) + 1;
+    stream
+        .write_all(&oversize.to_be_bytes())
+        .expect("write oversized frame header");
+    let response = read_framed_message(&mut stream).expect("read daemon error response");
+    let response: DaemonResponse = serde_json::from_slice(&response).expect("deserialize response");
+    match response {
+        DaemonResponse::Error(error) => assert!(error.message.contains("too large")),
+        other => panic!("unexpected response: {other:?}"),
+    }
+
+    let shutdown = send_request(&socket_path, &DaemonRequest::Shutdown);
+    assert!(matches!(shutdown, DaemonResponse::Ack));
+    let status = daemon.wait().expect("wait for daemon");
+    assert!(status.success(), "daemon exited with {status}");
+}
+
+#[test]
+fn times_out_incomplete_requests() {
+    let dir = tempdir().expect("tempdir");
+    let socket_path = dir.path().join("raragd.sock");
+    let mut daemon = spawn_daemon(&socket_path);
+
+    let mut stream = UnixStream::connect(&socket_path).expect("connect unix socket");
+    stream
+        .set_read_timeout(Some(Duration::from_secs(3)))
+        .expect("set read timeout");
+    stream
+        .write_all(&16_u32.to_be_bytes())
+        .expect("write frame header");
+    stream.write_all(b"{").expect("write partial body");
+
+    let response = read_framed_message(&mut stream).expect("read daemon timeout response");
+    let response: DaemonResponse = serde_json::from_slice(&response).expect("deserialize response");
+    match response {
+        DaemonResponse::Error(error) => assert!(error.message.contains("timed out")),
+        other => panic!("unexpected response: {other:?}"),
+    }
+
+    let shutdown = send_request(&socket_path, &DaemonRequest::Shutdown);
+    assert!(matches!(shutdown, DaemonResponse::Ack));
     let status = daemon.wait().expect("wait for daemon");
     assert!(status.success(), "daemon exited with {status}");
 }

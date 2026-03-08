@@ -48,6 +48,7 @@ The system is not a generic question-answering assistant. It is a repository mem
 
 Related Task Registry ID: `2026-03-07-shared-config`
 Related Task Registry ID: `2026-03-08-rerank-observability`
+Related Task Registry ID: `2026-03-08-local-ipc-hardening`
 
 ## Scope
 
@@ -234,6 +235,26 @@ Defaults:
 
 All paths must be overridable by config or CLI flags.
 
+- `rarag` may create missing private runtime directories for its own sockets and state roots.
+- If `rarag` creates a runtime directory, it must tighten that directory to owner-only access.
+- `rarag` must never implicitly chmod an already existing socket parent directory that it did not create.
+- Existing shared directories such as `/tmp`, checked-in project directories, or operator-provided runtime roots must preserve their prior mode and ownership.
+
+### Local IPC Contract
+
+- The daemon and MCP servers are local IPC endpoints over Unix sockets and must remain unary request/response services.
+- Inbound request handling must use an explicit bounded request boundary rather than waiting for peer EOF as the sole delimiter.
+- Inbound request handling must enforce both:
+  - a maximum request size
+  - a whole-request read deadline
+- These limits may be implementation constants in the MVP; they do not require a new user-facing config surface.
+- A single stalled, slow, or oversized local client must not be able to block unrelated daemon or MCP requests indefinitely or drive unbounded memory growth.
+- The daemon-side framing/serialization rules must be shared by the daemon server, CLI client, MCP-to-daemon client path, and transport tests so request handling does not drift across binaries.
+- Daemon framing must distinguish bounded request sizes from daemon response handling:
+  - inbound daemon requests must enforce the configured request ceiling
+  - valid daemon responses must not be rejected merely because they exceed the inbound request ceiling
+- MCP request handling must stay compatible with the existing local MCP contract while still enforcing bounded reads and timeouts.
+
 ### Admin Reload Contract
 
 - `raragd` must support configuration reload via `SIGHUP`.
@@ -252,12 +273,17 @@ All paths must be overridable by config or CLI flags.
 - Config parsing and error reporting must avoid echoing secret values from environment variables.
 - Binaries must tolerate missing secret env vars until the dependent operation is actually invoked, unless the binary is explicitly validating readiness.
 - Config examples may reference credential env var names only.
+- Existing operator-managed directories must not have permissions tightened as a side effect of socket startup.
 
 ## Invariants
 
 - Snapshot identity is immutable after creation.
 - Retrieval results never mix chunks from different snapshots.
 - Every body-region retains its owning symbol header and symbol id.
+- Existing socket parent directory permissions are never implicitly tightened.
+- Local IPC request reads are bounded in bytes and time.
+- Local IPC deadlines apply to the full request assembly window, not just individual socket read calls.
+- Valid daemon responses are not truncated or rejected by the daemon request-size ceiling.
 - Worktree selection is explicit; implicit fallback must only occur when exactly one worktree snapshot is available.
 - Structural indexing remains usable without semantic enrichment.
 - Tantivy, Turso, and Qdrant records remain referentially consistent by `chunk_id` and `snapshot_id`.

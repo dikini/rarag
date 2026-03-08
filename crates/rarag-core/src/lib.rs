@@ -4,6 +4,7 @@ pub mod config_loader;
 pub mod daemon;
 pub mod embeddings;
 pub mod indexing;
+pub mod ipc;
 pub mod metadata;
 pub mod retrieval;
 pub mod semantic;

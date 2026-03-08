@@ -1,8 +1,13 @@
 use std::io::{Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use rarag_core::daemon::{DaemonRequest, QueryPayload};
+use rarag_core::ipc::{
+    LOCAL_IPC_MAX_MESSAGE_BYTES, LOCAL_IPC_READ_TIMEOUT, read_framed_message,
+    write_framed_message,
+};
 use rarag_core::retrieval::QueryMode;
 use rarag_core::unix_socket::prepare_socket_path;
 use serde_json::{Value, json};
@@ -255,23 +260,58 @@ fn send_daemon_request(
 ) -> Result<rarag_core::daemon::DaemonResponse, String> {
     let mut stream = UnixStream::connect(socket_path).map_err(|err| err.to_string())?;
     let body = serde_json::to_vec(request).map_err(|err| err.to_string())?;
-    stream.write_all(&body).map_err(|err| err.to_string())?;
-    stream
-        .shutdown(std::net::Shutdown::Write)
-        .map_err(|err| err.to_string())?;
-    let mut response = Vec::new();
-    stream
-        .read_to_end(&mut response)
-        .map_err(|err| err.to_string())?;
+    write_framed_message(&mut stream, &body)?;
+    let response = read_framed_message(&mut stream)?;
     serde_json::from_slice(&response).map_err(|err| err.to_string())
 }
 
 fn read_request_value(stream: &mut UnixStream) -> Result<Value, String> {
+    read_request_value_with_limits(stream, LOCAL_IPC_MAX_MESSAGE_BYTES, LOCAL_IPC_READ_TIMEOUT)
+}
+
+fn read_request_value_with_limits(
+    stream: &mut UnixStream,
+    max_message_bytes: usize,
+    read_timeout: std::time::Duration,
+) -> Result<Value, String> {
+    let deadline = Instant::now() + read_timeout;
     let mut body = Vec::new();
-    stream
-        .read_to_end(&mut body)
-        .map_err(|err| err.to_string())?;
-    serde_json::from_slice(&body).map_err(|err| err.to_string())
+    let mut chunk = [0_u8; 4096];
+    loop {
+        let now = Instant::now();
+        if now >= deadline {
+            return Err("mcp request timed out".to_string());
+        }
+        stream
+            .set_read_timeout(Some(deadline.saturating_duration_since(now)))
+            .map_err(|err| err.to_string())?;
+        match stream.read(&mut chunk) {
+            Ok(0) => return serde_json::from_slice(&body).map_err(|err| err.to_string()),
+            Ok(read) => {
+                body.extend_from_slice(&chunk[..read]);
+                if body.len() > max_message_bytes {
+                    return Err(format!(
+                        "mcp request too large: {} bytes exceeds limit {max_message_bytes}",
+                        body.len(),
+                    ));
+                }
+                match serde_json::from_slice(&body) {
+                    Ok(value) => return Ok(value),
+                    Err(err) if err.classify() == serde_json::error::Category::Eof => {}
+                    Err(err) => return Err(err.to_string()),
+                }
+            }
+            Err(err)
+                if matches!(
+                    err.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                return Err("mcp request timed out".to_string());
+            }
+            Err(err) => return Err(err.to_string()),
+        }
+    }
 }
 
 fn write_response_value(stream: &mut UnixStream, response: &Value) -> Result<(), String> {
@@ -284,4 +324,28 @@ pub fn daemon_socket_from_args(args: &[String], default_socket: &str) -> PathBuf
         .find(|window| window[0] == "--daemon-socket")
         .map(|window| PathBuf::from(&window[1]))
         .unwrap_or_else(|| PathBuf::from(default_socket))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::read_request_value_with_limits;
+    use std::io::Write;
+    use std::os::unix::net::UnixStream;
+    use std::time::Duration;
+
+    #[test]
+    fn request_size_limit_rejects_oversized_incomplete_json() {
+        let (mut reader, mut writer) = UnixStream::pair().expect("unix stream pair");
+        writer
+            .write_all(b"[                                ")
+            .expect("write oversized incomplete payload");
+        writer
+            .shutdown(std::net::Shutdown::Write)
+            .expect("shutdown writer");
+
+        let err =
+            read_request_value_with_limits(&mut reader, 16, Duration::from_secs(5)).unwrap_err();
+
+        assert!(err.contains("too large"), "error was: {err}");
+    }
 }
