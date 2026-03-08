@@ -177,8 +177,11 @@ fn records_and_loads_query_observations() {
                 "find-examples",
                 "example_sum",
                 Some("mini_repo::example_sum".to_string()),
-                vec!["src/lib.rs".to_string()],
-                vec!["warning".to_string()],
+                vec!["src/lib.rs".to_string(), "src/path,with,comma.rs".to_string()],
+                vec![
+                    "warning".to_string(),
+                    "provider said: keep,trim,rank".to_string(),
+                ],
                 2,
                 RetrievalConfig::default(),
                 ObservabilityConfig {
@@ -192,8 +195,8 @@ fn records_and_loads_query_observations() {
                 "Symbol",
                 Some("mini_repo::example_sum".to_string()),
                 "src/lib.rs",
-                vec!["exact_symbol".to_string()],
-                vec!["example".to_string()],
+                vec!["exact_symbol".to_string(), "semantic,seed".to_string()],
+                vec!["example".to_string(), "tests,docs".to_string()],
                 1,
                 true,
                 false,
@@ -214,7 +217,8 @@ fn records_and_loads_query_observations() {
                 .expect("load observations");
             assert_eq!(loaded.len(), 1);
             assert_eq!(loaded[0].observation_id, "obs-1");
-            assert_eq!(loaded[0].changed_paths, vec!["src/lib.rs"]);
+            assert_eq!(loaded[0].changed_paths, observation.changed_paths);
+            assert_eq!(loaded[0].warnings, observation.warnings);
             assert_eq!(
                 loaded[0].observability.verbosity,
                 ObservabilityVerbosity::Detailed
@@ -225,6 +229,96 @@ fn records_and_loads_query_observations() {
                 .await
                 .expect("load candidate observations");
             assert_eq!(loaded_candidates, candidates);
+        })
+    });
+}
+
+#[test]
+fn record_query_observation_is_atomic_for_candidate_failures() {
+    with_runtime(|runtime| {
+        runtime.block_on(async {
+            let dir = tempdir().expect("tempdir");
+            let store = SnapshotStore::open_local(&db_path(dir.path()))
+                .await
+                .expect("open local db");
+            let snapshot = store
+                .create_or_get_snapshot(sample_snapshot("/repo/.worktrees/obs-atomic"))
+                .await
+                .expect("create snapshot");
+
+            let observation = QueryObservationRecord::new(
+                "obs-atomic",
+                snapshot.id.clone(),
+                "understand-symbol",
+                "atomic observation write",
+                None,
+                vec!["src/lib.rs".to_string()],
+                Vec::new(),
+                2,
+                RetrievalConfig::default(),
+                ObservabilityConfig {
+                    enabled: true,
+                    verbosity: ObservabilityVerbosity::Summary,
+                },
+            );
+            let candidates = vec![
+                CandidateObservationRecord::new(
+                    "obs-atomic",
+                    "chunk-dup",
+                    "Symbol",
+                    None,
+                    "src/lib.rs",
+                    vec!["exact_symbol".to_string()],
+                    vec!["symbol".to_string()],
+                    1,
+                    true,
+                    true,
+                    5.0,
+                    0.8,
+                    0.0,
+                    5.8,
+                ),
+                CandidateObservationRecord::new(
+                    "obs-atomic",
+                    "chunk-dup",
+                    "Symbol",
+                    None,
+                    "src/lib.rs",
+                    vec!["exact_symbol".to_string()],
+                    vec!["symbol".to_string()],
+                    1,
+                    false,
+                    true,
+                    4.0,
+                    0.8,
+                    0.0,
+                    4.8,
+                ),
+            ];
+
+            let error = store
+                .record_query_observation(observation, &candidates)
+                .await
+                .expect_err("duplicate candidate rows should fail");
+            assert!(
+                error.contains("UNIQUE") || error.contains("constraint"),
+                "unexpected error: {error}"
+            );
+
+            let observations = store
+                .load_query_observations(&snapshot.id)
+                .await
+                .expect("load observations after failed write");
+            assert!(observations.is_empty(), "observation row leaked on failure");
+
+            let loaded_candidates = store
+                .load_candidate_observations("obs-atomic")
+                .await
+                .expect("load candidates after failed write");
+            assert!(
+                loaded_candidates.is_empty(),
+                "candidate rows leaked on failure"
+            );
         })
     });
 }
