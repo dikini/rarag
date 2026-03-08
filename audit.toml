@@ -1,3 +1,9 @@
 [advisories]
 yanked = false
-ignore = []
+ignore = [
+  # Temporary until upstream dependencies remove/replace affected crates:
+  # - turso stack removes paste
+  # - tonic/qdrant-client stack removes rustls-pemfile
+  "RUSTSEC-2024-0436", # paste (transitive via turso)
+  "RUSTSEC-2025-0134", # rustls-pemfile (transitive via tonic/qdrant-client)
+]

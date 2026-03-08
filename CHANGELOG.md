@@ -37,6 +37,7 @@ The format is based on Common Changelog:
 
 ### Fixed
 
+- Fixed dependency/security policy alignment by adding explicit GPL license metadata to workspace crates, allowing required transitive licenses in `deny.toml`, and pinning local path dependency versions to satisfy wildcard-ban checks.
 - Fixed the `policy-checks` GitHub Actions workflow to invoke the official `rhysd/actionlint` installer script with the correct positional arguments (`latest <dir>`) in a writable runner-local bin directory exported to `PATH`.
 - Fixed policy verification portability by installing `ripgrep` in the GitHub Actions runner and adding `grep` fallbacks in shell-quality and task-registry policy scripts when `rg` is unavailable.
 - Fixed `rarag service install` unit generation to resolve `raragd` and `rarag-mcp` executable paths from the installed CLI location (with `$PATH` fallback) and to use the active resolved config path instead of hardcoded `~/.cargo/bin` and `~/.config/rarag/rarag.toml` assumptions.
@@ -47,6 +48,7 @@ The format is based on Common Changelog:
 
 ### Changed
 
+- Added a README dependency note explaining that `CDLA-Permissive-2.0` appears via `webpki-roots` pulled by `reqwest`/`rustls` TLS support.
 - Changed `README.md` into a concise documentation hub that routes users to install, ops, and integration guides instead of duplicating detailed operator steps inline.
 - Changed service-porcelain docs/spec to explicitly document current hardcoded unit path assumptions and the tracked follow-up contract for resolved binary/config unit generation.
 - Initialized required project docs by resolving startup placeholders in `README.md` and `AGENTS.md`, and aligned security reporting guidance with repository issue-based intake.
