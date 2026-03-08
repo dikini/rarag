@@ -28,7 +28,7 @@ pub struct TantivyChunkStore {
     file_path: tantivy::schema::Field,
     kind: tantivy::schema::Field,
     retrieval_markers: tantivy::schema::Field,
-    workflow_hints: tantivy::schema::Field,
+    repository_state_hints: tantivy::schema::Field,
     text: tantivy::schema::Field,
 }
 
@@ -46,7 +46,8 @@ impl TantivyChunkStore {
         let file_path = schema_builder.add_text_field("file_path", STRING | STORED);
         let kind = schema_builder.add_text_field("kind", STRING | STORED);
         let retrieval_markers = schema_builder.add_text_field("retrieval_markers", TEXT | STORED);
-        let workflow_hints = schema_builder.add_text_field("workflow_hints", TEXT | STORED);
+        let repository_state_hints =
+            schema_builder.add_text_field("repository_state_hints", TEXT | STORED);
         let text = schema_builder.add_text_field("text", TEXT | STORED);
         let schema = schema_builder.build();
 
@@ -70,7 +71,7 @@ impl TantivyChunkStore {
             file_path,
             kind,
             retrieval_markers,
-            workflow_hints,
+            repository_state_hints,
             text,
         })
     }
@@ -94,7 +95,7 @@ impl TantivyChunkStore {
                     self.file_path => chunk.file_path.display().to_string(),
                     self.kind => chunk_kind_name(&chunk.kind).to_string(),
                     self.retrieval_markers => chunk.retrieval_markers.join(" "),
-                    self.workflow_hints => chunk.workflow_hints.join(" "),
+                    self.repository_state_hints => chunk.repository_state_hints.join(" "),
                     self.text => chunk.text.clone(),
                 ))
                 .map_err(|err| err.to_string())?;
@@ -143,7 +144,7 @@ impl TantivyChunkStore {
                 self.file_path,
                 self.kind,
                 self.retrieval_markers,
-                self.workflow_hints,
+                self.repository_state_hints,
             ],
         );
         let query = parser

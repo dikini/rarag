@@ -49,7 +49,7 @@ Minimal local workflow:
 cp examples/rarag.example.toml ~/.config/rarag/rarag.toml
 raragd serve
 rarag index build --worktree "$PWD"
-rarag query --worktree "$PWD" --phase plan --mode understand-symbol "snapshot store"
+rarag query --worktree "$PWD" --mode understand-symbol --text "snapshot store"
 ```
 
 ## Configuration

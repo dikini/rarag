@@ -6,7 +6,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use rarag_core::daemon::{DaemonRequest, DaemonResponse, QueryPayload};
-use rarag_core::retrieval::{QueryMode, WorkflowPhase};
+use rarag_core::retrieval::QueryMode;
 use rarag_core::snapshot::SnapshotKey;
 use tempfile::tempdir;
 
@@ -110,7 +110,6 @@ fn requests_require_snapshot_or_unambiguous_worktree() {
         snapshot_id: None,
         worktree_root: None,
         query_mode: QueryMode::UnderstandSymbol,
-        workflow_phase: WorkflowPhase::Plan,
         query_text: "example_sum".to_string(),
         symbol_path: None,
         limit: None,
@@ -158,7 +157,6 @@ fn daemon_roundtrip_serves_query_payload() {
             snapshot_id: None,
             worktree_root: Some(snapshot.worktree_root.clone()),
             query_mode: QueryMode::UnderstandSymbol,
-            workflow_phase: WorkflowPhase::Plan,
             query_text: "example_sum".to_string(),
             symbol_path: Some("mini_repo::example_sum".to_string()),
             limit: Some(4),

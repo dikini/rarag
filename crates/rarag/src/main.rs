@@ -75,16 +75,16 @@ fn print_help() {
         "  rarag index status [--socket <path>] [--snapshot <id> | --worktree <path>] [--json]"
     );
     println!(
-        "  rarag query --mode <mode> --phase <phase> --text <query> [--symbol-path <path>] [--snapshot <id> | --worktree <path>] [--changed-path <path>]... [--limit <n>] [--socket <path>] [--json] [--dry-run-request]"
+        "  rarag query --mode <mode> --text <query> [--symbol-path <path>] [--snapshot <id> | --worktree <path>] [--changed-path <path>]... [--limit <n>] [--socket <path>] [--json] [--dry-run-request]"
     );
     println!(
-        "  rarag symbol --phase <phase> --text <query> [--symbol-path <path>] [--snapshot <id> | --worktree <path>] [--changed-path <path>]... [--limit <n>] [--socket <path>] [--json] [--dry-run-request]"
+        "  rarag symbol --text <query> [--symbol-path <path>] [--snapshot <id> | --worktree <path>] [--changed-path <path>]... [--limit <n>] [--socket <path>] [--json] [--dry-run-request]"
     );
     println!(
-        "  rarag examples --phase <phase> --text <query> [--symbol-path <path>] [--snapshot <id> | --worktree <path>] [--changed-path <path>]... [--limit <n>] [--socket <path>] [--json] [--dry-run-request]"
+        "  rarag examples --text <query> [--symbol-path <path>] [--snapshot <id> | --worktree <path>] [--changed-path <path>]... [--limit <n>] [--socket <path>] [--json] [--dry-run-request]"
     );
     println!(
-        "  rarag blast-radius --phase <phase> --text <query> [--symbol-path <path>] [--snapshot <id> | --worktree <path>] [--changed-path <path>]... [--limit <n>] [--socket <path>] [--json] [--dry-run-request]"
+        "  rarag blast-radius --text <query> [--symbol-path <path>] [--snapshot <id> | --worktree <path>] [--changed-path <path>]... [--limit <n>] [--socket <path>] [--json] [--dry-run-request]"
     );
     println!("  rarag doctor [--socket <path>] [--json] [--dry-run-request]");
 }

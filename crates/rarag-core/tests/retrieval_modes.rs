@@ -4,7 +4,7 @@ use rarag_core::chunking::RustChunker;
 use rarag_core::embeddings::EmbeddingProvider;
 use rarag_core::indexing::{ChunkIndexer, QdrantPointStore, TantivyChunkStore};
 use rarag_core::metadata::SnapshotStore;
-use rarag_core::retrieval::{QueryMode, RepositoryRetriever, RetrievalRequest, WorkflowPhase};
+use rarag_core::retrieval::{QueryMode, RepositoryRetriever, RetrievalRequest};
 use rarag_core::snapshot::SnapshotKey;
 use tempfile::tempdir;
 use tokio::runtime::Runtime;
@@ -112,7 +112,6 @@ fn prioritizes_exact_symbol_match() {
                 RetrievalRequest::new(
                     snapshot_id,
                     QueryMode::UnderstandSymbol,
-                    WorkflowPhase::Plan,
                     "example_sum implementation",
                 )
                 .with_symbol_path("mini_repo::example_sum")
@@ -140,7 +139,6 @@ fn caps_neighborhood_size_by_mode() {
                 RetrievalRequest::new(
                     snapshot_id,
                     QueryMode::UnderstandSymbol,
-                    WorkflowPhase::WriteCode,
                     "example_sum",
                 )
                 .with_symbol_path("mini_repo::example_sum")
@@ -207,7 +205,6 @@ fn results_never_cross_snapshot_boundary() {
                 RetrievalRequest::new(
                     snapshot_a.id.clone(),
                     QueryMode::BlastRadius,
-                    WorkflowPhase::Review,
                     "example_sum",
                 )
                 .with_symbol_path("mini_repo::example_sum")
@@ -235,7 +232,6 @@ fn bounded_refactor_returns_tests_and_references() {
                 RetrievalRequest::new(
                     snapshot_id,
                     QueryMode::BoundedRefactor,
-                    WorkflowPhase::Verify,
                     "rename or refactor example_sum safely",
                 )
                 .with_symbol_path("mini_repo::example_sum")
@@ -267,7 +263,6 @@ fn falls_back_to_lexical_bm25_when_symbol_path_is_missing() {
                 RetrievalRequest::new(
                     snapshot_id,
                     QueryMode::FindExamples,
-                    WorkflowPhase::Plan,
                     "oversized_example",
                 )
                 .with_limit(6),
@@ -297,7 +292,6 @@ fn lexical_query_can_hit_docs_and_example_text() {
                 RetrievalRequest::new(
                     snapshot_id,
                     QueryMode::FindExamples,
-                    WorkflowPhase::Plan,
                     "assert_eq!(doc_example_sum(2, 3), 5);",
                 )
                 .with_limit(6),

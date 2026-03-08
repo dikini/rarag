@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     signature_text TEXT,
     parent_symbol_path TEXT,
     retrieval_markers TEXT NOT NULL DEFAULT '',
-    workflow_hints TEXT NOT NULL DEFAULT '',
+    repository_state_hints TEXT NOT NULL DEFAULT '',
     file_path TEXT NOT NULL,
     start_byte INTEGER NOT NULL,
     end_byte INTEGER NOT NULL,

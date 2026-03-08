@@ -66,7 +66,6 @@ fn query_schema(mode_required: bool) -> Value {
             "snapshot_id": { "type": "string" },
             "worktree_root": { "type": "string" },
             "mode": { "type": "string" },
-            "phase": { "type": "string" },
             "text": { "type": "string" },
             "symbol_path": { "type": "string" },
             "limit": { "type": "integer" },
@@ -75,7 +74,7 @@ fn query_schema(mode_required: bool) -> Value {
                 "items": { "type": "string" }
             }
         },
-        "required": ["phase", "text"]
+        "required": ["text"]
     });
 
     if mode_required

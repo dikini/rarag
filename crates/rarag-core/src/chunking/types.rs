@@ -30,6 +30,6 @@ pub struct Chunk {
     pub signature_text: Option<String>,
     pub parent_symbol_path: Option<String>,
     pub retrieval_markers: Vec<String>,
-    pub workflow_hints: Vec<String>,
+    pub repository_state_hints: Vec<String>,
     pub text: String,
 }

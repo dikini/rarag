@@ -41,7 +41,7 @@ struct ChunkMetadata {
     signature_text: Option<String>,
     parent_symbol_path: Option<String>,
     retrieval_markers: Vec<String>,
-    workflow_hints: Vec<String>,
+    repository_state_hints: Vec<String>,
     text_override: Option<String>,
     id_suffix: Option<String>,
 }
@@ -124,12 +124,12 @@ fn collect_items(
                 let doc_bundle = doc_bundle_from_source(source, syntax.text_range());
                 let docs_text = doc_bundle.as_ref().map(|bundle| bundle.text.clone());
                 let mut retrieval_markers = root_markers(source_root_kind);
-                let mut workflow_hints = root_hints(source_root_kind);
+                let mut repository_state_hints = root_state_hints(source_root_kind);
                 if function.has_atom_attr("test")
                     && !retrieval_markers.iter().any(|item| item == "test")
                 {
                     retrieval_markers.push("test".to_string());
-                    workflow_hints.push("tests".to_string());
+                    repository_state_hints.push("tests".to_string());
                 }
 
                 let metadata = ChunkMetadata {
@@ -139,7 +139,7 @@ fn collect_items(
                     signature_text: Some(signature_text.clone()),
                     parent_symbol_path: Some(module_path.to_string()),
                     retrieval_markers: retrieval_markers.clone(),
-                    workflow_hints: workflow_hints.clone(),
+                    repository_state_hints: repository_state_hints.clone(),
                     ..ChunkMetadata::default()
                 };
                 chunks.push(chunk_from_range(
@@ -165,7 +165,7 @@ fn collect_items(
                             signature_text: Some(signature_text.clone()),
                             parent_symbol_path: Some(symbol_path.clone()),
                             retrieval_markers: retrieval_markers.clone(),
-                            workflow_hints: workflow_hints.clone(),
+                            repository_state_hints: repository_state_hints.clone(),
                             ..ChunkMetadata::default()
                         },
                     ));
@@ -183,7 +183,7 @@ fn collect_items(
                             signature_text: Some(signature_text.clone()),
                             parent_symbol_path: Some(module_path.to_string()),
                             retrieval_markers: vec!["test".to_string()],
-                            workflow_hints: vec!["tests".to_string()],
+                            repository_state_hints: vec!["tests".to_string()],
                             ..ChunkMetadata::default()
                         },
                     ));
@@ -218,7 +218,7 @@ fn collect_items(
                         signature_text: Some(signature_text.clone()),
                         parent_symbol_path: Some(module_path.to_string()),
                         retrieval_markers: root_markers(source_root_kind),
-                        workflow_hints: root_hints(source_root_kind),
+                        repository_state_hints: root_state_hints(source_root_kind),
                         ..ChunkMetadata::default()
                     },
                 ));
@@ -251,7 +251,7 @@ fn collect_items(
                         signature_text: Some(signature_text.clone()),
                         parent_symbol_path: Some(module_path.to_string()),
                         retrieval_markers: root_markers(source_root_kind),
-                        workflow_hints: root_hints(source_root_kind),
+                        repository_state_hints: root_state_hints(source_root_kind),
                         ..ChunkMetadata::default()
                     },
                 ));
@@ -295,7 +295,7 @@ fn collect_items(
                         signature_text: Some(signature_text.clone()),
                         parent_symbol_path: Some(module_path.to_string()),
                         retrieval_markers: root_markers(source_root_kind),
-                        workflow_hints: root_hints(source_root_kind),
+                        repository_state_hints: root_state_hints(source_root_kind),
                         ..ChunkMetadata::default()
                     },
                 ));
@@ -328,7 +328,7 @@ fn collect_items(
                         signature_text: Some(signature_text.clone()),
                         parent_symbol_path: Some(module_path.to_string()),
                         retrieval_markers: root_markers(source_root_kind),
-                        workflow_hints: root_hints(source_root_kind),
+                        repository_state_hints: root_state_hints(source_root_kind),
                         ..ChunkMetadata::default()
                     },
                 ));
@@ -358,7 +358,7 @@ fn collect_items(
                         signature_text: Some(signature_text),
                         parent_symbol_path: Some(module_path.to_string()),
                         retrieval_markers: root_markers(source_root_kind),
-                        workflow_hints: root_hints(source_root_kind),
+                        repository_state_hints: root_state_hints(source_root_kind),
                         ..ChunkMetadata::default()
                     },
                 ));
@@ -396,7 +396,7 @@ fn append_doctest_chunks(
                 signature_text: Some(signature_text.to_string()),
                 parent_symbol_path: Some(symbol_path.to_string()),
                 retrieval_markers: vec!["doctest".to_string(), "example".to_string()],
-                workflow_hints: vec!["tests".to_string(), "examples".to_string()],
+                repository_state_hints: vec!["tests".to_string(), "examples".to_string()],
                 text_override: Some(code),
                 id_suffix: Some(format!("doctest-{index}")),
             },
@@ -502,7 +502,7 @@ fn file_chunk(
                 .map(ToString::to_string),
             parent_symbol_path: None,
             retrieval_markers: root_markers(root_kind),
-            workflow_hints: root_hints(root_kind),
+            repository_state_hints: root_state_hints(root_kind),
             ..ChunkMetadata::default()
         },
     )
@@ -554,7 +554,7 @@ fn chunk_from_range(
         signature_text: metadata.signature_text,
         parent_symbol_path: metadata.parent_symbol_path,
         retrieval_markers: metadata.retrieval_markers,
-        workflow_hints: metadata.workflow_hints,
+        repository_state_hints: metadata.repository_state_hints,
         text,
     }
 }
@@ -579,7 +579,7 @@ fn root_markers(kind: SourceRootKind) -> Vec<String> {
     }
 }
 
-fn root_hints(kind: SourceRootKind) -> Vec<String> {
+fn root_state_hints(kind: SourceRootKind) -> Vec<String> {
     match kind {
         SourceRootKind::Src => Vec::new(),
         SourceRootKind::Examples => vec!["examples".to_string()],

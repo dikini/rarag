@@ -143,7 +143,7 @@ fn mcp_request(socket_path: &Path, body: Value) -> Value {
 }
 
 #[test]
-fn cli_parses_phase_and_mode_flags() {
+fn cli_parses_mode_and_snapshot_flags() {
     let stdout = run_cli(&[
         "query",
         "--socket",
@@ -152,8 +152,6 @@ fn cli_parses_phase_and_mode_flags() {
         "/tmp/worktree",
         "--mode",
         "bounded-refactor",
-        "--phase",
-        "review",
         "--text",
         "rename example_sum",
         "--dry-run-request",
@@ -161,38 +159,22 @@ fn cli_parses_phase_and_mode_flags() {
 
     assert!(stdout.contains("\"kind\": \"query\""));
     assert!(stdout.contains("\"query_mode\": \"BoundedRefactor\""));
-    assert!(stdout.contains("\"workflow_phase\": \"Review\""));
+    assert!(stdout.contains("\"worktree_root\": \"/tmp/worktree\""));
 }
 
 #[test]
-fn cli_accepts_spec_phase_aliases() {
-    let tests_stdout = run_cli(&[
+fn cli_dry_run_omits_workflow_phase() {
+    let stdout = run_cli(&[
         "symbol",
         "--socket",
         "/tmp/rarag-test.sock",
         "--worktree",
         "/tmp/worktree",
-        "--phase",
-        "tests",
         "--text",
         "example_sum",
         "--dry-run-request",
     ]);
-    assert!(tests_stdout.contains("\"workflow_phase\": \"WriteTests\""));
-
-    let code_stdout = run_cli(&[
-        "symbol",
-        "--socket",
-        "/tmp/rarag-test.sock",
-        "--worktree",
-        "/tmp/worktree",
-        "--phase",
-        "code",
-        "--text",
-        "example_sum",
-        "--dry-run-request",
-    ]);
-    assert!(code_stdout.contains("\"workflow_phase\": \"WriteCode\""));
+    assert!(!stdout.contains("workflow_phase"));
 }
 
 #[test]
@@ -254,8 +236,6 @@ fn cli_and_mcp_observe_same_snapshot_result() {
         snapshot_worktree,
         "--mode",
         "understand-symbol",
-        "--phase",
-        "plan",
         "--text",
         "example_sum",
         "--symbol-path",
@@ -287,7 +267,6 @@ fn cli_and_mcp_observe_same_snapshot_result() {
             "arguments": {
                 "worktree_root": snapshot_worktree,
                 "mode": "understand-symbol",
-                "phase": "plan",
                 "text": "example_sum",
                 "symbol_path": "mini_repo::example_sum"
             }
@@ -345,8 +324,6 @@ fn cli_and_mcp_roundtrip_against_local_daemon() {
         daemon_socket.to_str().expect("daemon socket"),
         "--worktree-root",
         snapshot_worktree,
-        "--phase",
-        "review",
         "--text",
         "example_sum",
         "--symbol-path",
@@ -378,7 +355,6 @@ fn cli_and_mcp_roundtrip_against_local_daemon() {
             "name": "rag_blast_radius",
             "arguments": {
                 "worktree_root": snapshot_worktree,
-                "phase": "review",
                 "text": "example_sum",
                 "symbol_path": "mini_repo::example_sum"
             }
@@ -404,8 +380,6 @@ fn cli_supports_spec_command_aliases() {
         "/tmp/rarag-test.sock",
         "--worktree",
         "/tmp/worktree",
-        "--phase",
-        "plan",
         "--text",
         "example_sum",
         "--dry-run-request",
@@ -419,8 +393,6 @@ fn cli_supports_spec_command_aliases() {
         "/tmp/rarag-test.sock",
         "--worktree",
         "/tmp/worktree",
-        "--phase",
-        "write-tests",
         "--text",
         "example_sum",
         "--dry-run-request",
@@ -465,11 +437,11 @@ fn cli_supports_spec_command_aliases() {
 }
 
 #[test]
-fn mcp_accepts_spec_phase_aliases() {
+fn mcp_calls_omit_workflow_phase() {
     let dir = tempdir().expect("tempdir");
     let daemon_socket = dir.path().join("raragd.sock");
     let mcp_socket = dir.path().join("rarag-mcp.sock");
-    let snapshot_worktree = "/repo/.worktrees/mcp-phase-aliases";
+    let snapshot_worktree = "/repo/.worktrees/mcp-query-mode-contract";
 
     let mut daemon = spawn_server(
         "raragd",
@@ -516,7 +488,6 @@ fn mcp_accepts_spec_phase_aliases() {
             "name": "rag_examples",
             "arguments": {
                 "worktree_root": snapshot_worktree,
-                "phase": "tests",
                 "text": "example_sum"
             }
         }),
@@ -534,7 +505,6 @@ fn mcp_accepts_spec_phase_aliases() {
             "name": "rag_symbol_context",
             "arguments": {
                 "worktree_root": snapshot_worktree,
-                "phase": "code",
                 "text": "example_sum"
             }
         }),

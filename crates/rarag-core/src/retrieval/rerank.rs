@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::metadata::ChunkRecord;
-use crate::retrieval::query::{QueryMode, RetrievedChunk, WorkflowPhase};
+use crate::retrieval::query::{QueryMode, RetrievedChunk};
 use crate::worktree::WorktreeChanges;
 
 #[derive(Debug, Clone)]
@@ -14,7 +14,6 @@ pub struct Candidate {
 pub fn rerank_candidates(
     snapshot_id: &str,
     query_mode: QueryMode,
-    workflow_phase: WorkflowPhase,
     worktree_changes: &WorktreeChanges,
     candidates: Vec<Candidate>,
     limit: usize,
@@ -40,7 +39,6 @@ pub fn rerank_candidates(
     let mut ranked: Vec<_> = merged
         .into_values()
         .map(|mut candidate| {
-            candidate.score += workflow_phase_bias(workflow_phase, &candidate.chunk);
             candidate.score += query_mode_bias(query_mode, &candidate.chunk);
             if worktree_changes.matches(&candidate.chunk.file_path) {
                 candidate.score += worktree_diff_bias(query_mode);
@@ -70,26 +68,6 @@ pub fn rerank_candidates(
     });
     ranked.truncate(limit);
     ranked
-}
-
-fn workflow_phase_bias(workflow_phase: WorkflowPhase, chunk: &ChunkRecord) -> f32 {
-    match workflow_phase {
-        WorkflowPhase::WriteTests | WorkflowPhase::Verify => {
-            if is_test_like(chunk) {
-                0.8
-            } else {
-                0.0
-            }
-        }
-        WorkflowPhase::Review => {
-            if is_test_like(chunk) {
-                0.4
-            } else {
-                0.2
-            }
-        }
-        _ => 0.0,
-    }
 }
 
 fn query_mode_bias(query_mode: QueryMode, chunk: &ChunkRecord) -> f32 {

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::retrieval::{QueryMode, RetrievalRequest, RetrievalResponse, WorkflowPhase};
+use crate::retrieval::{QueryMode, RetrievalRequest, RetrievalResponse};
 use crate::snapshot::SnapshotKey;
 use crate::worktree::WorktreeChanges;
 
@@ -26,7 +26,6 @@ pub struct QueryPayload {
     pub snapshot_id: Option<String>,
     pub worktree_root: Option<String>,
     pub query_mode: QueryMode,
-    pub workflow_phase: WorkflowPhase,
     pub query_text: String,
     pub symbol_path: Option<String>,
     pub limit: Option<usize>,
@@ -44,12 +43,7 @@ impl QueryPayload {
     }
 
     pub fn into_retrieval_request(self, snapshot_id: String) -> RetrievalRequest {
-        let mut request = RetrievalRequest::new(
-            snapshot_id,
-            self.query_mode,
-            self.workflow_phase,
-            self.query_text,
-        );
+        let mut request = RetrievalRequest::new(snapshot_id, self.query_mode, self.query_text);
         if let Some(symbol_path) = self.symbol_path {
             request = request.with_symbol_path(symbol_path);
         }
