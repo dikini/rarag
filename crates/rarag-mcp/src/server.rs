@@ -1,6 +1,7 @@
 use std::io::{Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use rarag_core::daemon::{DaemonRequest, QueryPayload};
 use rarag_core::ipc::{
@@ -265,12 +266,17 @@ fn send_daemon_request(
 }
 
 fn read_request_value(stream: &mut UnixStream) -> Result<Value, String> {
-    stream
-        .set_read_timeout(Some(LOCAL_IPC_READ_TIMEOUT))
-        .map_err(|err| err.to_string())?;
+    let deadline = Instant::now() + LOCAL_IPC_READ_TIMEOUT;
     let mut body = Vec::new();
     let mut chunk = [0_u8; 4096];
     loop {
+        let now = Instant::now();
+        if now >= deadline {
+            return Err("mcp request timed out".to_string());
+        }
+        stream
+            .set_read_timeout(Some(deadline.saturating_duration_since(now)))
+            .map_err(|err| err.to_string())?;
         match stream.read(&mut chunk) {
             Ok(0) => return serde_json::from_slice(&body).map_err(|err| err.to_string()),
             Ok(read) => {
