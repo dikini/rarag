@@ -73,6 +73,7 @@ Notes:
 - install is idempotent for already-matching managed units
 - use `rarag service install --force` to overwrite drifted managed units
 - unmanaged existing unit files are never overwritten
+- current implementation writes `%h/.cargo/bin/{raragd,rarag-mcp}` and `%h/.config/rarag/rarag.toml` into generated units; follow-up task `2026-03-08-service-porcelain-followup` tracks path-resolution fixes for non-default install/config layouts
 
 ## Day-2 Operations
 

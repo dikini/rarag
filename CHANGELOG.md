@@ -14,6 +14,7 @@ The format is based on Common Changelog:
 - Added `INSTALL.md` as the canonical user install guide with Debian/Ubuntu-first setup, runtime dependency notes, and command discovery guidance.
 - Added `docs/ops/systemd-user.md` with user-level unit examples, lifecycle commands, reload behavior, logs, and troubleshooting.
 - Added `docs/integrations/` documentation with a tiered support matrix and per-client MCP setup pages for Codex, Claude, opencode, goose, and kimi.
+- Added follow-up plan `docs/plans/2026-03-08-service-porcelain-followup-implementation-plan.md` for service-porcelain path-resolution fixes.
 - Added configurable heuristic rerank and neighborhood weights in shared TOML config, plus opt-in retrieval observation persistence for offline eval generation.
 - Added daemon config reload controls through `SIGHUP`, `rarag daemon reload`, and MCP tool `rag_reload_config`.
 - Added a repository RAG architecture spec, design note, and phased implementation plan for a Rust-first, worktree-aware hybrid retrieval system using Turso, Tantivy, Qdrant, `ra_ap_syntax`, and `rust-analyzer`.
@@ -44,6 +45,7 @@ The format is based on Common Changelog:
 ### Changed
 
 - Changed `README.md` into a concise documentation hub that routes users to install, ops, and integration guides instead of duplicating detailed operator steps inline.
+- Changed service-porcelain docs/spec to explicitly document current hardcoded unit path assumptions and the tracked follow-up contract for resolved binary/config unit generation.
 - Initialized required project docs by resolving startup placeholders in `README.md` and `AGENTS.md`, and aligned security reporting guidance with repository issue-based intake.
 - Replaced the leftover scaffold README with a project-specific overview based on the repo template, covering the actual `rarag` workspace, runtime model, configuration, and verification workflow.
 - Made the OpenAI-compatible embedding client configurable for provider base URLs and endpoint paths, with the OpenAI default target aligned to `/v1/embeddings`.

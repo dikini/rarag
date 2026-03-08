@@ -203,6 +203,12 @@ Required commands:
 - `rarag service restart`
 - `rarag service reload`
 
+Service install contract:
+
+- `rarag service install` must generate user systemd units that reference resolved executable paths for `raragd` and `rarag-mcp` instead of assuming a fixed install root such as `%h/.cargo/bin`.
+- `rarag service install` must generate unit `--config` arguments using the active resolved config path when available (explicit `--config` first, then resolved config search order), not a hardcoded default path.
+- Generated service units must remain deterministic and idempotent for identical resolved inputs.
+
 Required flags:
 
 - `--repo-root`

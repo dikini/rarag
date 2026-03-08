@@ -102,6 +102,10 @@ systemctl --user status rarag-mcp.service
 rarag status --worktree "$PWD" --json
 ```
 
+Current limitation:
+
+- `rarag service install` currently generates units that assume `%h/.cargo/bin` binary locations and `%h/.config/rarag/rarag.toml`; if your install/config layout differs, use manual unit edits from `docs/ops/systemd-user.md` until follow-up task `2026-03-08-service-porcelain-followup` lands.
+
 ## Path C: Advanced / Custom Layout
 
 Use this path if you need non-default socket, cache, state, or collection settings.
