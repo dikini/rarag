@@ -2,8 +2,8 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-Goal: Eliminate the current socket permission hazard plus the daemon and MCP unbounded-read denial-of-service issues.
-Architecture: Keep the existing local Unix-socket topology and APIs, but harden the runtime in three isolated steps: safe socket-parent permissions, bounded daemon transport reads, and bounded MCP transport reads. Each task should land as its own TDD cycle and its own commit.
+Goal: Eliminate the current socket permission hazard plus the daemon and MCP unbounded-read denial-of-service issues, including the follow-up regressions found in review.
+Architecture: Keep the existing local Unix-socket topology and APIs, but harden the runtime in five isolated steps: safe socket-parent permissions, bounded daemon transport reads, bounded MCP transport reads, daemon response-limit separation, and whole-request MCP deadlines. Each task should land as its own TDD cycle and its own commit.
 Tech Stack: Rust 1.93+, edition 2024, `tokio`, `serde_json`, local Unix sockets, and existing `rarag-core`, `raragd`, `rarag`, and `rarag-mcp` transport helpers.
 Template-Profile: tdd-strict-v1
 
@@ -24,12 +24,13 @@ Template-Profile: tdd-strict-v1
 - Keep task definitions concrete: exact files, commands, and expected outcomes.
 - Do not add new user-facing configuration for socket timeouts or request limits in this pass.
 - Land one task per commit exactly as requested.
+- The follow-up fixes for daemon responses and MCP slow-drip protection must also land one task per commit.
 
 ## Task Update Contract
 
 - Any daemon transport framing change must update every local daemon caller and the related tests in the same task.
 - Any MCP request-read hardening change must preserve the current tool contract and JSON-RPC behavior.
-- Do not combine the three hardening tasks into one commit.
+- Do not combine hardening tasks into one commit.
 
 ## Completion Gate
 
@@ -111,6 +112,167 @@ Command:
 ```bash
 git add crates/rarag-core/src/unix_socket.rs crates/rarag-core/tests/config_binary_entrypoints.rs
 git commit -m "fix: preserve existing socket parent permissions"
+```
+
+**Completion Evidence**
+
+- Preconditions satisfied
+- Invariants preserved
+- Postconditions met
+- Unit, invariant, and integration checks passing
+- Commit created with the required message
+
+### Task 4: Separate Daemon Request Limits From Response Decoding
+
+**Files:**
+
+- Modify: `crates/rarag-core/src/ipc.rs`
+- Modify: `crates/rarag/src/client.rs`
+- Modify: `crates/rarag-mcp/src/server.rs`
+- Modify: `crates/rarag-core/tests/daemon_transport.rs`
+- Modify: `README.md`
+- Modify: `CHANGELOG.md`
+
+**Preconditions**
+
+- Shared framed-message decoding currently applies the daemon request ceiling to daemon responses as well.
+
+**Invariants**
+
+- Inbound daemon requests remain bounded and time-limited.
+- CLI and MCP daemon-client paths remain compatible with daemon framing.
+- Valid daemon responses are not rejected solely because they exceed the inbound request ceiling.
+
+**Postconditions**
+
+- Daemon request decoding still enforces the request size ceiling.
+- Daemon response decoding uses a separate larger-or-unbounded policy suitable for valid query payloads.
+- Regression coverage proves large framed responses still decode successfully.
+
+**Tests (must exist before implementation)**
+
+Unit:
+- `daemon_transport::read_framed_response_accepts_large_payload`
+
+Invariant:
+- `daemon_transport::serializes_unix_socket_requests`
+- `daemon_transport::rejects_oversized_requests`
+
+Integration:
+- `daemon_cli_mcp::cli_and_mcp_roundtrip_against_local_daemon`
+
+Property-based (optional):
+- none
+
+**Red Phase (required before code changes)**
+
+Command: `cargo test -p rarag-core --test daemon_transport read_framed_response_accepts_large_payload -- --nocapture`
+Expected: fail while daemon response decoding still shares the bounded request ceiling.
+
+**Implementation Steps**
+
+1. Add a failing daemon transport regression proving large valid framed responses must decode successfully.
+2. Split framed-message decoding into request-bounded and response-safe helpers or equivalent explicit policies.
+3. Update CLI and MCP daemon-client response decoding to use the response-safe path.
+4. Update operator docs and changelog for the corrected transport contract.
+5. Re-run focused daemon transport and CLI/MCP integration tests.
+
+**Green Phase (required)**
+
+Command: `cargo test -p rarag-core --test daemon_transport --test daemon_cli_mcp -- --nocapture`
+Expected: daemon transport tests and CLI/MCP daemon roundtrip tests pass, including the large-response regression.
+
+**Refactor Phase (optional but controlled)**
+
+Allowed scope: `crates/rarag-core/src/ipc.rs`, daemon clients, daemon transport tests, and directly related docs
+Re-run: `cargo test -p rarag-core --test daemon_transport --test daemon_cli_mcp -- --nocapture`
+
+**Commit**
+
+Command:
+
+```bash
+git add crates/rarag-core/src/ipc.rs crates/rarag/src/client.rs crates/rarag-mcp/src/server.rs crates/rarag-core/tests/daemon_transport.rs README.md CHANGELOG.md
+git commit -m "fix: separate daemon response size limits"
+```
+
+**Completion Evidence**
+
+- Preconditions satisfied
+- Invariants preserved
+- Postconditions met
+- Unit, invariant, and integration checks passing
+- Commit created with the required message
+
+### Task 5: Enforce MCP Whole-Request Deadlines
+
+**Files:**
+
+- Modify: `crates/rarag-mcp/src/server.rs`
+- Modify: `crates/rarag-core/tests/mcp_protocol.rs`
+- Modify: `README.md`
+- Modify: `CHANGELOG.md`
+
+**Preconditions**
+
+- MCP inbound request handling currently enforces only a per-read timeout, so slow-drip clients can still monopolize the endpoint.
+
+**Invariants**
+
+- MCP tool names and payload contracts stay unchanged.
+- MCP oversized and incomplete request handling remains intact.
+- A slow-drip MCP client times out within the whole-request deadline.
+
+**Postconditions**
+
+- MCP inbound request handling measures timeout across the total request-assembly window.
+- Slow-drip MCP client regressions are covered by tests.
+- Operator-facing docs reflect the stronger whole-request deadline behavior.
+
+**Tests (must exist before implementation)**
+
+Unit:
+- `mcp_protocol::times_out_slow_drip_socket_request`
+
+Invariant:
+- `mcp_protocol::times_out_incomplete_socket_request`
+- `mcp_protocol::rejects_oversized_socket_request`
+
+Integration:
+- `mcp_protocol::standard_client_can_initialize_and_call_rag_tools`
+
+Property-based (optional):
+- none
+
+**Red Phase (required before code changes)**
+
+Command: `cargo test -p rarag-core --test mcp_protocol times_out_slow_drip_socket_request -- --nocapture`
+Expected: fail while MCP deadlines still reset on every successful `read()` call.
+
+**Implementation Steps**
+
+1. Add a failing MCP regression that slowly drips bytes without ever completing the request.
+2. Change MCP inbound request reading to enforce a whole-request deadline while preserving the current size ceiling and JSON-RPC behavior.
+3. Update docs and changelog for the stronger MCP runtime guarantee.
+4. Re-run MCP protocol regressions.
+
+**Green Phase (required)**
+
+Command: `cargo test -p rarag-core --test mcp_protocol -- --nocapture`
+Expected: MCP protocol tests pass, including the slow-drip regression.
+
+**Refactor Phase (optional but controlled)**
+
+Allowed scope: `crates/rarag-mcp/src/server.rs`, MCP protocol tests, and directly related docs
+Re-run: `cargo test -p rarag-core --test mcp_protocol -- --nocapture`
+
+**Commit**
+
+Command:
+
+```bash
+git add crates/rarag-mcp/src/server.rs crates/rarag-core/tests/mcp_protocol.rs README.md CHANGELOG.md
+git commit -m "fix: enforce mcp whole-request deadlines"
 ```
 
 **Completion Evidence**
