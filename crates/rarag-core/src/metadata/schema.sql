@@ -58,3 +58,38 @@ CREATE TABLE IF NOT EXISTS query_audits (
     recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (snapshot_id) REFERENCES snapshots(snapshot_id)
 );
+
+CREATE TABLE IF NOT EXISTS query_observations (
+    observation_id TEXT PRIMARY KEY,
+    snapshot_id TEXT NOT NULL,
+    query_mode TEXT NOT NULL,
+    query_text TEXT NOT NULL,
+    symbol_path TEXT,
+    changed_paths TEXT NOT NULL DEFAULT '',
+    warnings TEXT NOT NULL DEFAULT '',
+    result_count INTEGER NOT NULL,
+    retrieval_config_json TEXT NOT NULL,
+    observability_enabled INTEGER NOT NULL,
+    observability_verbosity TEXT NOT NULL,
+    recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (snapshot_id) REFERENCES snapshots(snapshot_id)
+);
+
+CREATE TABLE IF NOT EXISTS candidate_observations (
+    observation_id TEXT NOT NULL,
+    rank INTEGER NOT NULL,
+    chunk_id TEXT NOT NULL,
+    chunk_kind TEXT NOT NULL,
+    symbol_path TEXT,
+    file_path TEXT NOT NULL,
+    evidence TEXT NOT NULL DEFAULT '',
+    retrieval_markers TEXT NOT NULL DEFAULT '',
+    returned INTEGER NOT NULL,
+    matched_worktree INTEGER NOT NULL,
+    base_score REAL NOT NULL,
+    query_mode_bias REAL NOT NULL,
+    worktree_diff_bias REAL NOT NULL,
+    final_score REAL NOT NULL,
+    PRIMARY KEY (observation_id, rank, chunk_id),
+    FOREIGN KEY (observation_id) REFERENCES query_observations(observation_id)
+);

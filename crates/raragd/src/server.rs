@@ -176,12 +176,13 @@ impl DaemonState {
         };
 
         let request = payload.into_retrieval_request(snapshot_id);
-        let retriever = RepositoryRetriever::new_with_config(
+        let retriever = RepositoryRetriever::new_with_settings(
             &self.metadata,
             &self.tantivy,
             &self.qdrant,
             &self.provider,
             &self.active_config.retrieval,
+            &self.active_config.observability,
         );
         match retriever.retrieve(request).await {
             Ok(response) => DaemonResponse::Query(response),

@@ -35,6 +35,10 @@ impl WorktreeChanges {
     pub fn is_empty(&self) -> bool {
         self.changed_paths.is_empty()
     }
+
+    pub fn paths(&self) -> Vec<String> {
+        self.changed_paths.iter().cloned().collect()
+    }
 }
 
 fn normalize_path(path: &Path) -> String {

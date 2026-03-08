@@ -1,4 +1,5 @@
 use std::env;
+use std::str::FromStr;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
@@ -226,6 +227,19 @@ impl fmt::Display for ObservabilityVerbosity {
             Self::Off => f.write_str("off"),
             Self::Summary => f.write_str("summary"),
             Self::Detailed => f.write_str("detailed"),
+        }
+    }
+}
+
+impl FromStr for ObservabilityVerbosity {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "off" => Ok(Self::Off),
+            "summary" => Ok(Self::Summary),
+            "detailed" => Ok(Self::Detailed),
+            other => Err(format!("unsupported observability verbosity {other}")),
         }
     }
 }

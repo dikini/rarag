@@ -12,14 +12,22 @@ pub struct Candidate {
     pub evidence: Vec<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct RankedCandidate {
+    pub item: RetrievedChunk,
+    pub base_score: f32,
+    pub query_mode_bias: f32,
+    pub worktree_diff_bias: f32,
+    pub matched_worktree: bool,
+}
+
 pub fn rerank_candidates(
     snapshot_id: &str,
     query_mode: QueryMode,
     weights: &RerankWeightsConfig,
     worktree_changes: &WorktreeChanges,
     candidates: Vec<Candidate>,
-    limit: usize,
-) -> Vec<RetrievedChunk> {
+) -> Vec<RankedCandidate> {
     let mut merged: HashMap<String, Candidate> = HashMap::new();
 
     for candidate in candidates {
@@ -41,9 +49,17 @@ pub fn rerank_candidates(
     let mut ranked: Vec<_> = merged
         .into_values()
         .map(|mut candidate| {
-            candidate.score += query_mode_bias(query_mode, &candidate.chunk, weights);
-            if worktree_changes.matches(&candidate.chunk.file_path) {
-                candidate.score += worktree_diff_bias(query_mode, weights);
+            let base_score = candidate.score;
+            let query_mode_bias = query_mode_bias(query_mode, &candidate.chunk, weights);
+            candidate.score += query_mode_bias;
+            let matched_worktree = worktree_changes.matches(&candidate.chunk.file_path);
+            let worktree_diff_bias = if matched_worktree {
+                worktree_diff_bias(query_mode, weights)
+            } else {
+                0.0
+            };
+            if matched_worktree {
+                candidate.score += worktree_diff_bias;
                 if !candidate
                     .evidence
                     .iter()
@@ -52,23 +68,29 @@ pub fn rerank_candidates(
                     candidate.evidence.push("worktree_diff".to_string());
                 }
             }
-            RetrievedChunk {
-                snapshot_id: snapshot_id.to_string(),
-                chunk: candidate.chunk,
-                score: candidate.score,
-                evidence: candidate.evidence,
+            RankedCandidate {
+                item: RetrievedChunk {
+                    snapshot_id: snapshot_id.to_string(),
+                    chunk: candidate.chunk,
+                    score: candidate.score,
+                    evidence: candidate.evidence,
+                },
+                base_score,
+                query_mode_bias,
+                worktree_diff_bias,
+                matched_worktree,
             }
         })
         .collect();
 
     ranked.sort_by(|left, right| {
         right
+            .item
             .score
-            .total_cmp(&left.score)
-            .then_with(|| left.chunk.file_path.cmp(&right.chunk.file_path))
-            .then_with(|| left.chunk.start_byte.cmp(&right.chunk.start_byte))
+            .total_cmp(&left.item.score)
+            .then_with(|| left.item.chunk.file_path.cmp(&right.item.chunk.file_path))
+            .then_with(|| left.item.chunk.start_byte.cmp(&right.item.chunk.start_byte))
     });
-    ranked.truncate(limit);
     ranked
 }
 
@@ -191,11 +213,10 @@ mod tests {
                     evidence: vec!["lexical_bm25".to_string()],
                 },
             ],
-            2,
         );
 
-        assert_eq!(items[0].chunk.chunk_kind, "Symbol");
-        assert!(items[0].score > items[1].score);
+        assert_eq!(items[0].item.chunk.chunk_kind, "Symbol");
+        assert!(items[0].item.score > items[1].item.score);
     }
 
     #[test]
@@ -221,10 +242,9 @@ mod tests {
                     evidence: vec!["lexical_bm25".to_string()],
                 },
             ],
-            2,
         );
 
-        assert_eq!(items[0].chunk.chunk_kind, "BodyRegion");
-        assert!(items[0].score > items[1].score);
+        assert_eq!(items[0].item.chunk.chunk_kind, "BodyRegion");
+        assert!(items[0].item.score > items[1].item.score);
     }
 }
