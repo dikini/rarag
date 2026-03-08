@@ -16,12 +16,38 @@ pub struct ServiceReport {
     pub changed_files: Vec<String>,
 }
 
-pub fn execute(command: &ServiceCommand) -> Result<ServiceReport, String> {
-    run(command, false)
+#[derive(Debug, Clone)]
+pub struct ServiceInstallContext {
+    daemon_binary_path: PathBuf,
+    mcp_binary_path: PathBuf,
+    config_path: PathBuf,
 }
 
-pub fn plan(command: &ServiceCommand) -> Result<ServiceReport, String> {
-    run(command, true)
+impl ServiceInstallContext {
+    pub fn discover(config_source_path: Option<PathBuf>) -> Result<Self, String> {
+        let current_executable = std::env::current_exe().map_err(|err| {
+            format!("failed to resolve current executable path for service install: {err}")
+        })?;
+        let daemon_binary_path = resolve_binary_path(&current_executable, "raragd")?;
+        let mcp_binary_path = resolve_binary_path(&current_executable, "rarag-mcp")?;
+        let config_path = resolve_config_path(config_source_path)?;
+        Ok(Self {
+            daemon_binary_path,
+            mcp_binary_path,
+            config_path,
+        })
+    }
+}
+
+pub fn execute(
+    command: &ServiceCommand,
+    context: &ServiceInstallContext,
+) -> Result<ServiceReport, String> {
+    run(command, context, false)
+}
+
+pub fn plan(command: &ServiceCommand, context: &ServiceInstallContext) -> Result<ServiceReport, String> {
+    run(command, context, true)
 }
 
 pub fn print_human(report: &ServiceReport) {
@@ -34,7 +60,11 @@ pub fn print_human(report: &ServiceReport) {
     }
 }
 
-fn run(command: &ServiceCommand, dry_run: bool) -> Result<ServiceReport, String> {
+fn run(
+    command: &ServiceCommand,
+    context: &ServiceInstallContext,
+    dry_run: bool,
+) -> Result<ServiceReport, String> {
     let operation_name = operation_name(&command.operation).to_string();
     let mut report = ServiceReport {
         operation: operation_name,
@@ -43,7 +73,7 @@ fn run(command: &ServiceCommand, dry_run: bool) -> Result<ServiceReport, String>
     };
 
     match &command.operation {
-        ServiceOperation::Install { force } => install(*force, dry_run, &mut report)?,
+        ServiceOperation::Install { force } => install(*force, context, dry_run, &mut report)?,
         ServiceOperation::Start { target } => lifecycle("start", *target, dry_run, &mut report)?,
         ServiceOperation::Stop { target } => lifecycle("stop", *target, dry_run, &mut report)?,
         ServiceOperation::Restart { target } => {
@@ -65,7 +95,12 @@ fn operation_name(operation: &ServiceOperation) -> &'static str {
     }
 }
 
-fn install(force: bool, dry_run: bool, report: &mut ServiceReport) -> Result<(), String> {
+fn install(
+    force: bool,
+    context: &ServiceInstallContext,
+    dry_run: bool,
+    report: &mut ServiceReport,
+) -> Result<(), String> {
     let unit_dir = unit_dir()?;
     if dry_run {
         report
@@ -79,12 +114,18 @@ fn install(force: bool, dry_run: bool, report: &mut ServiceReport) -> Result<(),
     let mcp_path = unit_dir.join(MCP_UNIT_NAME);
     maybe_write_unit(
         &daemon_path,
-        &daemon_unit_contents(),
+        &daemon_unit_contents(context),
         force,
         dry_run,
         report,
     )?;
-    maybe_write_unit(&mcp_path, &mcp_unit_contents(), force, dry_run, report)?;
+    maybe_write_unit(
+        &mcp_path,
+        &mcp_unit_contents(context),
+        force,
+        dry_run,
+        report,
+    )?;
 
     systemctl(&["daemon-reload"], dry_run, report)?;
     systemctl(&["enable", "--now", DAEMON_UNIT_NAME], dry_run, report)?;
@@ -188,14 +229,123 @@ fn unit_dir() -> Result<PathBuf, String> {
     Ok(PathBuf::from(home).join(".config/systemd/user"))
 }
 
-fn daemon_unit_contents() -> String {
+fn daemon_unit_contents(context: &ServiceInstallContext) -> String {
+    let daemon_binary = context.daemon_binary_path.to_string_lossy();
+    let config_path = context.config_path.to_string_lossy();
+    let env_file = env_file_path(&context.config_path);
+    let env_file = env_file.to_string_lossy();
     format!(
-        "{MANAGED_HEADER}[Unit]\nDescription=rarag daemon\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=simple\nExecStart=%h/.cargo/bin/raragd serve --config %h/.config/rarag/rarag.toml\nRestart=on-failure\nRestartSec=2\nEnvironmentFile=-%h/.config/rarag/daemon.env\n\n[Install]\nWantedBy=default.target\n"
+        "{MANAGED_HEADER}[Unit]\nDescription=rarag daemon\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=simple\nExecStart={daemon_binary} serve --config {config_path}\nRestart=on-failure\nRestartSec=2\nEnvironmentFile=-{env_file}\n\n[Install]\nWantedBy=default.target\n"
     )
 }
 
-fn mcp_unit_contents() -> String {
+fn mcp_unit_contents(context: &ServiceInstallContext) -> String {
+    let mcp_binary = context.mcp_binary_path.to_string_lossy();
+    let config_path = context.config_path.to_string_lossy();
+    let env_file = env_file_path(&context.config_path);
+    let env_file = env_file.to_string_lossy();
     format!(
-        "{MANAGED_HEADER}[Unit]\nDescription=rarag MCP server\nAfter=raragd.service\nRequires=raragd.service\n\n[Service]\nType=simple\nExecStart=%h/.cargo/bin/rarag-mcp serve --config %h/.config/rarag/rarag.toml\nRestart=on-failure\nRestartSec=2\nEnvironmentFile=-%h/.config/rarag/daemon.env\n\n[Install]\nWantedBy=default.target\n"
+        "{MANAGED_HEADER}[Unit]\nDescription=rarag MCP server\nAfter=raragd.service\nRequires=raragd.service\n\n[Service]\nType=simple\nExecStart={mcp_binary} serve --config {config_path}\nRestart=on-failure\nRestartSec=2\nEnvironmentFile=-{env_file}\n\n[Install]\nWantedBy=default.target\n"
     )
+}
+
+fn env_file_path(config_path: &Path) -> PathBuf {
+    config_path
+        .parent()
+        .map(|parent| parent.join("daemon.env"))
+        .unwrap_or_else(|| PathBuf::from("daemon.env"))
+}
+
+fn resolve_binary_path(current_executable: &Path, binary_name: &str) -> Result<PathBuf, String> {
+    if let Some(parent) = current_executable.parent() {
+        let sibling = parent.join(binary_name);
+        if sibling.exists() {
+            return Ok(sibling);
+        }
+    }
+
+    if let Some(path_env) = std::env::var_os("PATH") {
+        for path_entry in std::env::split_paths(&path_env) {
+            let candidate = path_entry.join(binary_name);
+            if candidate.exists() {
+                return Ok(candidate);
+            }
+        }
+    }
+
+    Err(format!(
+        "unable to resolve {binary_name}; expected sibling of {} or PATH lookup",
+        current_executable.display()
+    ))
+}
+
+fn resolve_config_path(config_source_path: Option<PathBuf>) -> Result<PathBuf, String> {
+    if let Some(path) = config_source_path {
+        return Ok(path);
+    }
+
+    if let Ok(xdg_config_home) = std::env::var("XDG_CONFIG_HOME") {
+        return Ok(PathBuf::from(xdg_config_home).join("rarag/rarag.toml"));
+    }
+
+    if let Ok(home) = std::env::var("HOME") {
+        return Ok(PathBuf::from(home).join(".config/rarag/rarag.toml"));
+    }
+
+    Err("unable to resolve config path; set HOME or XDG_CONFIG_HOME or pass --config".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{daemon_unit_contents, resolve_binary_path, ServiceInstallContext};
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn install_uses_resolved_binary_paths() {
+        let context = ServiceInstallContext {
+            daemon_binary_path: PathBuf::from("/opt/rarag/bin/raragd"),
+            mcp_binary_path: PathBuf::from("/opt/rarag/bin/rarag-mcp"),
+            config_path: PathBuf::from("/tmp/configs/rarag.toml"),
+        };
+        let unit = daemon_unit_contents(&context);
+        assert!(unit.contains("ExecStart=/opt/rarag/bin/raragd serve --config /tmp/configs/rarag.toml"));
+    }
+
+    #[test]
+    fn install_uses_resolved_config_path() {
+        let context = ServiceInstallContext {
+            daemon_binary_path: PathBuf::from("/usr/bin/raragd"),
+            mcp_binary_path: PathBuf::from("/usr/bin/rarag-mcp"),
+            config_path: PathBuf::from("/work/custom/rarag.toml"),
+        };
+        let unit = daemon_unit_contents(&context);
+        assert!(unit.contains("ExecStart=/usr/bin/raragd serve --config /work/custom/rarag.toml"));
+        assert!(unit.contains("EnvironmentFile=-/work/custom/daemon.env"));
+    }
+
+    #[test]
+    fn resolve_binary_path_prefers_sibling() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        let bin_dir = std::env::temp_dir()
+            .join(format!("rarag-services-test-{unique}"))
+            .join("bin");
+        fs::create_dir_all(&bin_dir).expect("create bin dir");
+        let current_exe = bin_dir.join("rarag");
+        fs::write(&current_exe, "").expect("write cli");
+        let sibling_daemon = bin_dir.join("raragd");
+        fs::write(&sibling_daemon, "").expect("write daemon");
+
+        let resolved = resolve_binary_path(&current_exe, "raragd").expect("resolve binary");
+        assert_eq!(resolved, sibling_daemon);
+        let _ = fs::remove_dir_all(
+            bin_dir
+                .parent()
+                .expect("test root"),
+        );
+    }
 }

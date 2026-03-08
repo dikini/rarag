@@ -13,7 +13,10 @@ fn main() {
         .windows(2)
         .find(|window| window[0] == "--config")
         .map(|window| std::path::PathBuf::from(&window[1]));
-    let config = rarag_core::config_loader::load_app_config(config_path.as_deref())
+    let rarag_core::config_loader::LoadedAppConfig {
+        config,
+        source_path,
+    } = rarag_core::config_loader::load_app_config_with_source(config_path.as_deref())
         .expect("load app config");
 
     if args.iter().any(|arg| arg == "--print-config") {
@@ -57,10 +60,12 @@ fn main() {
                 }
             }
             cli::CliAction::Service(service_command) => {
+                let service_context = services::ServiceInstallContext::discover(source_path.clone())
+                    .expect("resolve service install paths");
                 let result = if command.dry_run {
-                    services::plan(service_command)
+                    services::plan(service_command, &service_context)
                 } else {
-                    services::execute(service_command)
+                    services::execute(service_command, &service_context)
                 };
                 match result {
                     Ok(report) => {

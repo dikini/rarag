@@ -35,10 +35,10 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=%h/.cargo/bin/raragd serve --config %h/.config/rarag/rarag.toml
+ExecStart=/absolute/path/to/raragd serve --config /absolute/path/to/rarag.toml
 Restart=on-failure
 RestartSec=2
-EnvironmentFile=-%h/.config/rarag/daemon.env
+EnvironmentFile=-/absolute/path/to/daemon.env
 
 [Install]
 WantedBy=default.target
@@ -54,10 +54,10 @@ Requires=raragd.service
 
 [Service]
 Type=simple
-ExecStart=%h/.cargo/bin/rarag-mcp serve --config %h/.config/rarag/rarag.toml
+ExecStart=/absolute/path/to/rarag-mcp serve --config /absolute/path/to/rarag.toml
 Restart=on-failure
 RestartSec=2
-EnvironmentFile=-%h/.config/rarag/daemon.env
+EnvironmentFile=-/absolute/path/to/daemon.env
 
 [Install]
 WantedBy=default.target
@@ -73,7 +73,8 @@ Notes:
 - install is idempotent for already-matching managed units
 - use `rarag service install --force` to overwrite drifted managed units
 - unmanaged existing unit files are never overwritten
-- current implementation writes `%h/.cargo/bin/{raragd,rarag-mcp}` and `%h/.config/rarag/rarag.toml` into generated units; follow-up task `2026-03-08-service-porcelain-followup` tracks path-resolution fixes for non-default install/config layouts
+- generated `ExecStart` paths are resolved from installed binaries (`rarag` sibling binaries first, then `$PATH`)
+- generated `--config` path follows active config resolution (`--config` override first, then `RARAG_CONFIG`/XDG/HOME search order)
 
 ## Day-2 Operations
 

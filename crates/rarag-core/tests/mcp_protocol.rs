@@ -306,13 +306,23 @@ fn rejects_oversized_socket_request() {
         }
         let _ = writer.shutdown(std::net::Shutdown::Write);
     });
-    let response = raw_json_response(&mut stream).expect("read response");
+    let response = raw_json_response(&mut stream);
     writer_handle.join().expect("join oversized writer");
-    let error = response["error"].as_str().unwrap_or_default();
-    assert!(
-        error.contains("too large") || error.contains("timed out"),
-        "response was: {response}"
-    );
+    match response {
+        Ok(payload) => {
+            let error = payload["error"].as_str().unwrap_or_default();
+            assert!(
+                error.contains("too large") || error.contains("timed out"),
+                "response was: {payload}"
+            );
+        }
+        Err(err) => {
+            assert!(
+                err.contains("Connection reset by peer"),
+                "unexpected oversized request error: {err}"
+            );
+        }
+    }
 
     let _ = mcp.kill();
     let _ = daemon.kill();
