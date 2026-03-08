@@ -2,6 +2,7 @@ mod neighborhood;
 mod query;
 mod rerank;
 
+use crate::config::RetrievalConfig;
 use crate::embeddings::EmbeddingProvider;
 use crate::indexing::{QdrantPointStore, TantivyChunkStore};
 use crate::metadata::{QueryAuditRecord, SnapshotStore};
@@ -14,6 +15,7 @@ pub struct RepositoryRetriever<'a, P> {
     tantivy: &'a TantivyChunkStore,
     qdrant: &'a QdrantPointStore,
     provider: &'a P,
+    retrieval: RetrievalConfig,
 }
 
 impl<'a, P> RepositoryRetriever<'a, P>
@@ -26,11 +28,28 @@ where
         qdrant: &'a QdrantPointStore,
         provider: &'a P,
     ) -> Self {
+        Self::new_with_config(
+            metadata,
+            tantivy,
+            qdrant,
+            provider,
+            &RetrievalConfig::default(),
+        )
+    }
+
+    pub fn new_with_config(
+        metadata: &'a SnapshotStore,
+        tantivy: &'a TantivyChunkStore,
+        qdrant: &'a QdrantPointStore,
+        provider: &'a P,
+        retrieval: &RetrievalConfig,
+    ) -> Self {
         Self {
             metadata,
             tantivy,
             qdrant,
             provider,
+            retrieval: retrieval.clone(),
         }
     }
 
@@ -84,7 +103,13 @@ where
             }
         };
 
-        let mut candidates = assemble_neighborhood(&request, &all_chunks, &seed_chunks, &all_edges);
+        let mut candidates = assemble_neighborhood(
+            &request,
+            &self.retrieval.neighborhood,
+            &all_chunks,
+            &seed_chunks,
+            &all_edges,
+        );
         for hit in lexical_hits {
             if let Some(chunk) = all_chunks
                 .iter()
@@ -113,6 +138,7 @@ where
         let items = rerank_candidates(
             &request.snapshot_id,
             request.query_mode,
+            &self.retrieval.rerank,
             &request.worktree_changes,
             candidates,
             request.effective_limit(),

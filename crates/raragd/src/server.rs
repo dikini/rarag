@@ -176,8 +176,13 @@ impl DaemonState {
         };
 
         let request = payload.into_retrieval_request(snapshot_id);
-        let retriever =
-            RepositoryRetriever::new(&self.metadata, &self.tantivy, &self.qdrant, &self.provider);
+        let retriever = RepositoryRetriever::new_with_config(
+            &self.metadata,
+            &self.tantivy,
+            &self.qdrant,
+            &self.provider,
+            &self.active_config.retrieval,
+        );
         match retriever.retrieve(request).await {
             Ok(response) => DaemonResponse::Query(response),
             Err(err) => error_response(err),

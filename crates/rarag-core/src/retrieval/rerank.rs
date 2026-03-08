@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::config::RerankWeightsConfig;
 use crate::metadata::ChunkRecord;
 use crate::retrieval::query::{QueryMode, RetrievedChunk};
 use crate::worktree::WorktreeChanges;
@@ -14,6 +15,7 @@ pub struct Candidate {
 pub fn rerank_candidates(
     snapshot_id: &str,
     query_mode: QueryMode,
+    weights: &RerankWeightsConfig,
     worktree_changes: &WorktreeChanges,
     candidates: Vec<Candidate>,
     limit: usize,
@@ -39,9 +41,9 @@ pub fn rerank_candidates(
     let mut ranked: Vec<_> = merged
         .into_values()
         .map(|mut candidate| {
-            candidate.score += query_mode_bias(query_mode, &candidate.chunk);
+            candidate.score += query_mode_bias(query_mode, &candidate.chunk, weights);
             if worktree_changes.matches(&candidate.chunk.file_path) {
-                candidate.score += worktree_diff_bias(query_mode);
+                candidate.score += worktree_diff_bias(query_mode, weights);
                 if !candidate
                     .evidence
                     .iter()
@@ -70,34 +72,45 @@ pub fn rerank_candidates(
     ranked
 }
 
-fn query_mode_bias(query_mode: QueryMode, chunk: &ChunkRecord) -> f32 {
+fn query_mode_bias(
+    query_mode: QueryMode,
+    chunk: &ChunkRecord,
+    weights: &RerankWeightsConfig,
+) -> f32 {
     match query_mode {
         QueryMode::UnderstandSymbol => {
             if chunk.chunk_kind == "Symbol" {
-                0.6
+                weights.understand_symbol_symbol
             } else {
                 0.0
             }
         }
         QueryMode::ImplementAdjacent => {
             if chunk.chunk_kind == "BodyRegion" {
-                0.4
+                weights.implement_adjacent_body_region
             } else {
                 0.0
             }
         }
-        QueryMode::BoundedRefactor | QueryMode::BlastRadius => {
+        QueryMode::BoundedRefactor => {
             if is_test_like(chunk) {
-                0.6
+                weights.bounded_refactor_test_like
             } else {
-                0.2
+                weights.bounded_refactor_other
+            }
+        }
+        QueryMode::BlastRadius => {
+            if is_test_like(chunk) {
+                weights.blast_radius_test_like
+            } else {
+                weights.blast_radius_other
             }
         }
         QueryMode::FindExamples => {
             if is_example_like(chunk) {
-                0.8
+                weights.find_examples_example_like
             } else {
-                0.1
+                weights.find_examples_other
             }
         }
     }
@@ -121,11 +134,97 @@ fn is_example_like(chunk: &ChunkRecord) -> bool {
         .any(|marker| matches!(marker.as_str(), "test" | "example" | "doctest"))
 }
 
-fn worktree_diff_bias(query_mode: QueryMode) -> f32 {
+fn worktree_diff_bias(query_mode: QueryMode, weights: &RerankWeightsConfig) -> f32 {
     match query_mode {
-        QueryMode::BoundedRefactor | QueryMode::BlastRadius => 1.2,
-        QueryMode::ImplementAdjacent => 0.8,
-        QueryMode::FindExamples => 0.5,
-        QueryMode::UnderstandSymbol => 0.4,
+        QueryMode::BoundedRefactor => weights.worktree_diff_bounded_refactor,
+        QueryMode::BlastRadius => weights.worktree_diff_blast_radius,
+        QueryMode::ImplementAdjacent => weights.worktree_diff_implement_adjacent,
+        QueryMode::FindExamples => weights.worktree_diff_find_examples,
+        QueryMode::UnderstandSymbol => weights.worktree_diff_understand_symbol,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Candidate, rerank_candidates};
+    use crate::config::RerankWeightsConfig;
+    use crate::metadata::ChunkRecord;
+    use crate::retrieval::QueryMode;
+    use crate::worktree::WorktreeChanges;
+
+    fn chunk(chunk_id: &str, chunk_kind: &str, file_path: &str, markers: &[&str]) -> ChunkRecord {
+        ChunkRecord {
+            chunk_id: chunk_id.to_string(),
+            snapshot_id: "snapshot-1".to_string(),
+            chunk_kind: chunk_kind.to_string(),
+            symbol_path: Some(format!("mini_repo::{chunk_id}")),
+            symbol_name: Some(chunk_id.to_string()),
+            owning_symbol_header: None,
+            docs_text: Some(String::new()),
+            signature_text: Some(String::new()),
+            parent_symbol_path: None,
+            retrieval_markers: markers.iter().map(|item| item.to_string()).collect(),
+            repository_state_hints: Vec::new(),
+            file_path: file_path.to_string(),
+            start_byte: 0,
+            end_byte: 10,
+            text: chunk_id.to_string(),
+        }
+    }
+
+    #[test]
+    fn default_weights_preserve_symbol_priority() {
+        let items = rerank_candidates(
+            "snapshot-1",
+            QueryMode::UnderstandSymbol,
+            &RerankWeightsConfig::default(),
+            &WorktreeChanges::default(),
+            vec![
+                Candidate {
+                    chunk: chunk("body", "BodyRegion", "src/lib.rs", &[]),
+                    score: 1.0,
+                    evidence: vec!["lexical_bm25".to_string()],
+                },
+                Candidate {
+                    chunk: chunk("symbol", "Symbol", "src/lib.rs", &[]),
+                    score: 1.0,
+                    evidence: vec!["lexical_bm25".to_string()],
+                },
+            ],
+            2,
+        );
+
+        assert_eq!(items[0].chunk.chunk_kind, "Symbol");
+        assert!(items[0].score > items[1].score);
+    }
+
+    #[test]
+    fn override_weights_change_rank_order() {
+        let weights = RerankWeightsConfig {
+            understand_symbol_symbol: -2.0,
+            ..RerankWeightsConfig::default()
+        };
+        let items = rerank_candidates(
+            "snapshot-1",
+            QueryMode::UnderstandSymbol,
+            &weights,
+            &WorktreeChanges::default(),
+            vec![
+                Candidate {
+                    chunk: chunk("body", "BodyRegion", "src/lib.rs", &[]),
+                    score: 1.0,
+                    evidence: vec!["lexical_bm25".to_string()],
+                },
+                Candidate {
+                    chunk: chunk("symbol", "Symbol", "src/lib.rs", &[]),
+                    score: 1.0,
+                    evidence: vec!["lexical_bm25".to_string()],
+                },
+            ],
+            2,
+        );
+
+        assert_eq!(items[0].chunk.chunk_kind, "BodyRegion");
+        assert!(items[0].score > items[1].score);
     }
 }
