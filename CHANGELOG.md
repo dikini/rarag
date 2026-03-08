@@ -28,6 +28,10 @@ The format is based on Common Changelog:
 - Added an opt-in `scripts/check-live-rag-stack.sh` pre-merge check for live OpenAI embeddings plus a real Qdrant endpoint.
 - Added `docs/ops/qdrant-runtime.md` to document Qdrant runtime setup for operators and developers.
 - Added a focused follow-up compatibility plan for bringing `main` into line with the canonical repository RAG spec around MCP transport, example/doctest indexing, and lexical schema coverage.
+
+### Fixed
+
+- Fixed local Unix-socket hardening so daemon and MCP request reads are size-bounded and time-limited, and so socket startup no longer tightens permissions on pre-existing parent directories.
 - Added MCP protocol compatibility regressions, example/doctest chunking regressions, and rich Tantivy schema contract tests for the repository RAG compatibility work.
 
 ### Changed

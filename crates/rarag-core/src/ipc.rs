@@ -1,8 +1,10 @@
 use std::io::{Read, Write};
 use std::time::Duration;
 
-pub const DAEMON_MAX_MESSAGE_BYTES: usize = 1024 * 1024;
-pub const DAEMON_READ_TIMEOUT: Duration = Duration::from_secs(1);
+pub const LOCAL_IPC_MAX_MESSAGE_BYTES: usize = 1024 * 1024;
+pub const LOCAL_IPC_READ_TIMEOUT: Duration = Duration::from_secs(1);
+pub const DAEMON_MAX_MESSAGE_BYTES: usize = LOCAL_IPC_MAX_MESSAGE_BYTES;
+pub const DAEMON_READ_TIMEOUT: Duration = LOCAL_IPC_READ_TIMEOUT;
 
 pub fn encode_framed_message(body: &[u8]) -> Result<Vec<u8>, String> {
     let len = u32::try_from(body.len()).map_err(|_| "daemon message too large".to_string())?;
@@ -14,9 +16,9 @@ pub fn encode_framed_message(body: &[u8]) -> Result<Vec<u8>, String> {
 
 pub fn decode_frame_len(header: [u8; 4]) -> Result<usize, String> {
     let len = u32::from_be_bytes(header) as usize;
-    if len > DAEMON_MAX_MESSAGE_BYTES {
+    if len > LOCAL_IPC_MAX_MESSAGE_BYTES {
         return Err(format!(
-            "daemon message too large: {len} bytes exceeds limit {DAEMON_MAX_MESSAGE_BYTES}"
+            "daemon message too large: {len} bytes exceeds limit {LOCAL_IPC_MAX_MESSAGE_BYTES}"
         ));
     }
     Ok(len)

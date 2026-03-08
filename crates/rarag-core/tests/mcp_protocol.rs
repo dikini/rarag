@@ -7,7 +7,9 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use rarag_core::daemon::DaemonRequest;
-use rarag_core::ipc::{read_framed_message, write_framed_message};
+use rarag_core::ipc::{
+    LOCAL_IPC_MAX_MESSAGE_BYTES, read_framed_message, write_framed_message,
+};
 use rarag_core::snapshot::SnapshotKey;
 use serde_json::{Value, json};
 use tempfile::tempdir;
@@ -104,6 +106,14 @@ fn daemon_json_request(socket_path: &Path, body: &Value) -> Result<Value, String
     let bytes = serde_json::to_vec(body).map_err(|err| err.to_string())?;
     write_framed_message(&mut stream, &bytes)?;
     let response = read_framed_message(&mut stream)?;
+    serde_json::from_slice(&response).map_err(|err| err.to_string())
+}
+
+fn raw_json_response(stream: &mut UnixStream) -> Result<Value, String> {
+    let mut response = Vec::new();
+    stream
+        .read_to_end(&mut response)
+        .map_err(|err| err.to_string())?;
     serde_json::from_slice(&response).map_err(|err| err.to_string())
 }
 
@@ -225,4 +235,125 @@ fn standard_client_can_initialize_and_call_rag_tools() {
     let _ = daemon.wait();
     let _ = mcp.kill();
     let _ = mcp.wait();
+}
+
+#[test]
+fn rejects_oversized_socket_request() {
+    let dir = tempdir().expect("tempdir");
+    let daemon_socket = dir.path().join("raragd.sock");
+    let mcp_socket = dir.path().join("rarag-mcp.sock");
+
+    let mut daemon = spawn_server(
+        "raragd",
+        &[
+            "serve",
+            "--socket",
+            daemon_socket.to_str().expect("daemon socket"),
+            "--test-deterministic-embeddings",
+            "--test-memory-vector-store",
+        ],
+        &daemon_socket,
+        json!({
+            "kind": "status",
+            "snapshot_id": null,
+            "worktree_root": "/tmp/probe-worktree"
+        }),
+    );
+    let mut mcp = spawn_server(
+        "rarag-mcp",
+        &[
+            "serve",
+            "--socket",
+            mcp_socket.to_str().expect("mcp socket"),
+            "--daemon-socket",
+            daemon_socket.to_str().expect("daemon socket"),
+        ],
+        &mcp_socket,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-03-26",
+                "capabilities": {},
+                "clientInfo": { "name": "compat-test", "version": "0.1.0" }
+            }
+        }),
+    );
+
+    let mut stream = UnixStream::connect(&mcp_socket).expect("connect mcp socket");
+    let oversized = vec![b' '; LOCAL_IPC_MAX_MESSAGE_BYTES + 1];
+    stream.write_all(&oversized).expect("write oversized body");
+    stream
+        .shutdown(std::net::Shutdown::Write)
+        .expect("shutdown write");
+    let response = raw_json_response(&mut stream).expect("read response");
+    assert!(
+        response["error"].as_str().unwrap_or_default().contains("too large"),
+        "response was: {response}"
+    );
+
+    let _ = mcp.kill();
+    let _ = daemon.kill();
+}
+
+#[test]
+fn times_out_incomplete_socket_request() {
+    let dir = tempdir().expect("tempdir");
+    let daemon_socket = dir.path().join("raragd.sock");
+    let mcp_socket = dir.path().join("rarag-mcp.sock");
+
+    let mut daemon = spawn_server(
+        "raragd",
+        &[
+            "serve",
+            "--socket",
+            daemon_socket.to_str().expect("daemon socket"),
+            "--test-deterministic-embeddings",
+            "--test-memory-vector-store",
+        ],
+        &daemon_socket,
+        json!({
+            "kind": "status",
+            "snapshot_id": null,
+            "worktree_root": "/tmp/probe-worktree"
+        }),
+    );
+    let mut mcp = spawn_server(
+        "rarag-mcp",
+        &[
+            "serve",
+            "--socket",
+            mcp_socket.to_str().expect("mcp socket"),
+            "--daemon-socket",
+            daemon_socket.to_str().expect("daemon socket"),
+        ],
+        &mcp_socket,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-03-26",
+                "capabilities": {},
+                "clientInfo": { "name": "compat-test", "version": "0.1.0" }
+            }
+        }),
+    );
+
+    let mut stream = UnixStream::connect(&mcp_socket).expect("connect mcp socket");
+    stream
+        .set_read_timeout(Some(Duration::from_secs(3)))
+        .expect("set read timeout");
+    stream
+        .write_all(br#"{"jsonrpc":"2.0","id":1,"method":"initialize""#)
+        .expect("write partial json");
+    let response = raw_json_response(&mut stream).expect("read timeout response");
+    assert!(
+        response["error"].as_str().unwrap_or_default().contains("timed out"),
+        "response was: {response}"
+    );
+
+    let _ = mcp.kill();
+    let _ = daemon.kill();
 }

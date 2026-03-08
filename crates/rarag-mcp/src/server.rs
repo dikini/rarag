@@ -3,7 +3,10 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 
 use rarag_core::daemon::{DaemonRequest, QueryPayload};
-use rarag_core::ipc::{read_framed_message, write_framed_message};
+use rarag_core::ipc::{
+    LOCAL_IPC_MAX_MESSAGE_BYTES, LOCAL_IPC_READ_TIMEOUT, read_framed_message,
+    write_framed_message,
+};
 use rarag_core::retrieval::QueryMode;
 use rarag_core::unix_socket::prepare_socket_path;
 use serde_json::{Value, json};
@@ -262,11 +265,39 @@ fn send_daemon_request(
 }
 
 fn read_request_value(stream: &mut UnixStream) -> Result<Value, String> {
-    let mut body = Vec::new();
     stream
-        .read_to_end(&mut body)
+        .set_read_timeout(Some(LOCAL_IPC_READ_TIMEOUT))
         .map_err(|err| err.to_string())?;
-    serde_json::from_slice(&body).map_err(|err| err.to_string())
+    let mut body = Vec::new();
+    let mut chunk = [0_u8; 4096];
+    loop {
+        match stream.read(&mut chunk) {
+            Ok(0) => return serde_json::from_slice(&body).map_err(|err| err.to_string()),
+            Ok(read) => {
+                body.extend_from_slice(&chunk[..read]);
+                if body.len() > LOCAL_IPC_MAX_MESSAGE_BYTES {
+                    return Err(format!(
+                        "mcp request too large: {} bytes exceeds limit {LOCAL_IPC_MAX_MESSAGE_BYTES}",
+                        body.len()
+                    ));
+                }
+                match serde_json::from_slice(&body) {
+                    Ok(value) => return Ok(value),
+                    Err(err) if err.classify() == serde_json::error::Category::Eof => {}
+                    Err(err) => return Err(err.to_string()),
+                }
+            }
+            Err(err)
+                if matches!(
+                    err.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                return Err("mcp request timed out".to_string());
+            }
+            Err(err) => return Err(err.to_string()),
+        }
+    }
 }
 
 fn write_response_value(stream: &mut UnixStream, response: &Value) -> Result<(), String> {
