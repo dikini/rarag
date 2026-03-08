@@ -9,6 +9,7 @@ Repository assistance RAG for local Rust codebases, built for agent workflows th
 Stability note:
 
 - Behavior, APIs, and persisted formats may change until this project is stable.
+- Before the first release, backward compatibility is not preserved unless a spec or plan explicitly says otherwise.
 
 ## Repository Layout
 
@@ -49,7 +50,7 @@ Minimal local workflow:
 cp examples/rarag.example.toml ~/.config/rarag/rarag.toml
 raragd serve
 rarag index build --worktree "$PWD"
-rarag query --worktree "$PWD" --phase plan --mode understand-symbol "snapshot store"
+rarag query --worktree "$PWD" --mode understand-symbol --text "snapshot store"
 ```
 
 ## Configuration

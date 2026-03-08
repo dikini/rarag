@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use rarag_core::daemon::{DaemonRequest, QueryPayload};
-use rarag_core::retrieval::{QueryMode, WorkflowPhase};
+use rarag_core::retrieval::QueryMode;
 use rarag_core::snapshot::SnapshotKey;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -111,7 +111,6 @@ fn parse_query_payload(args: &[String], force_blast_radius: bool) -> Result<Quer
         } else {
             parse_query_mode(&required_option(args, "--mode")?)?
         },
-        workflow_phase: parse_workflow_phase(&required_option(args, "--phase")?)?,
         query_text: required_option(args, "--text")?,
         symbol_path: option_value(args, "--symbol-path"),
         limit: option_value(args, "--limit")
@@ -133,7 +132,6 @@ fn parse_named_query_payload(
         snapshot_id: locator_option(args, "--snapshot-id", "--snapshot"),
         worktree_root: locator_option(args, "--worktree-root", "--worktree"),
         query_mode,
-        workflow_phase: parse_workflow_phase(&required_option(args, "--phase")?)?,
         query_text: required_option(args, "--text")?,
         symbol_path: option_value(args, "--symbol-path"),
         limit: option_value(args, "--limit")
@@ -155,19 +153,6 @@ fn parse_query_mode(value: &str) -> Result<QueryMode, String> {
         "find-examples" => Ok(QueryMode::FindExamples),
         "blast-radius" => Ok(QueryMode::BlastRadius),
         _ => Err(format!("unsupported --mode {value}")),
-    }
-}
-
-fn parse_workflow_phase(value: &str) -> Result<WorkflowPhase, String> {
-    match value {
-        "spec" => Ok(WorkflowPhase::Spec),
-        "plan" => Ok(WorkflowPhase::Plan),
-        "write-tests" | "tests" => Ok(WorkflowPhase::WriteTests),
-        "write-code" | "code" => Ok(WorkflowPhase::WriteCode),
-        "verify" => Ok(WorkflowPhase::Verify),
-        "review" => Ok(WorkflowPhase::Review),
-        "fix" => Ok(WorkflowPhase::Fix),
-        _ => Err(format!("unsupported --phase {value}")),
     }
 }
 

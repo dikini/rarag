@@ -3,7 +3,7 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 
 use rarag_core::daemon::{DaemonRequest, QueryPayload};
-use rarag_core::retrieval::{QueryMode, WorkflowPhase};
+use rarag_core::retrieval::QueryMode;
 use rarag_core::unix_socket::prepare_socket_path;
 use serde_json::{Value, json};
 
@@ -195,7 +195,6 @@ fn map_tool_call(name: &str, arguments: Value) -> Result<DaemonRequest, String> 
                 snapshot_id: value_string(&arguments, "snapshot_id"),
                 worktree_root: value_string(&arguments, "worktree_root"),
                 query_mode,
-                workflow_phase: parse_workflow_phase(&required_value(&arguments, "phase")?)?,
                 query_text: required_value(&arguments, "text")?,
                 symbol_path: value_string(&arguments, "symbol_path"),
                 limit: value_string(&arguments, "limit")
@@ -221,19 +220,6 @@ fn parse_query_mode(value: &str) -> Result<QueryMode, String> {
         "find-examples" => Ok(QueryMode::FindExamples),
         "blast-radius" => Ok(QueryMode::BlastRadius),
         _ => Err(format!("unsupported mode {value}")),
-    }
-}
-
-fn parse_workflow_phase(value: &str) -> Result<WorkflowPhase, String> {
-    match value {
-        "spec" => Ok(WorkflowPhase::Spec),
-        "plan" => Ok(WorkflowPhase::Plan),
-        "write-tests" | "tests" => Ok(WorkflowPhase::WriteTests),
-        "write-code" | "code" => Ok(WorkflowPhase::WriteCode),
-        "verify" => Ok(WorkflowPhase::Verify),
-        "review" => Ok(WorkflowPhase::Review),
-        "fix" => Ok(WorkflowPhase::Fix),
-        _ => Err(format!("unsupported phase {value}")),
     }
 }
 

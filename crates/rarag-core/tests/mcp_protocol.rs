@@ -202,7 +202,6 @@ fn standard_client_can_initialize_and_call_rag_tools() {
                 "name": "rag_symbol_context",
                 "arguments": {
                     "worktree_root": snapshot_worktree,
-                    "phase": "plan",
                     "text": "example_sum"
                 }
             }

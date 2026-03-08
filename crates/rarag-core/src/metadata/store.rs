@@ -126,7 +126,7 @@ impl SnapshotStore {
         let mut rows = self
             .connection
             .query(
-                "SELECT chunk_id, snapshot_id, chunk_kind, symbol_path, symbol_name, owning_symbol_header, docs_text, signature_text, parent_symbol_path, retrieval_markers, workflow_hints, file_path, start_byte, end_byte, text FROM chunks WHERE snapshot_id = ?1 ORDER BY file_path, start_byte",
+                "SELECT chunk_id, snapshot_id, chunk_kind, symbol_path, symbol_name, owning_symbol_header, docs_text, signature_text, parent_symbol_path, retrieval_markers, repository_state_hints, file_path, start_byte, end_byte, text FROM chunks WHERE snapshot_id = ?1 ORDER BY file_path, start_byte",
                 [snapshot_id],
             )
             .await
@@ -145,7 +145,7 @@ impl SnapshotStore {
                 signature_text: optional_text_at(&row, 7)?,
                 parent_symbol_path: optional_text_at(&row, 8)?,
                 retrieval_markers: split_csv(&text_at(&row, 9)?),
-                workflow_hints: split_csv(&text_at(&row, 10)?),
+                repository_state_hints: split_csv(&text_at(&row, 10)?),
                 file_path: text_at(&row, 11)?,
                 start_byte: u32_at(&row, 12)?,
                 end_byte: u32_at(&row, 13)?,
@@ -210,7 +210,7 @@ impl SnapshotStore {
         {
             self.connection
                 .execute(
-                    "INSERT INTO chunks (chunk_id, snapshot_id, chunk_kind, symbol_path, symbol_name, owning_symbol_header, docs_text, signature_text, parent_symbol_path, retrieval_markers, workflow_hints, file_path, start_byte, end_byte, text) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+                    "INSERT INTO chunks (chunk_id, snapshot_id, chunk_kind, symbol_path, symbol_name, owning_symbol_header, docs_text, signature_text, parent_symbol_path, retrieval_markers, repository_state_hints, file_path, start_byte, end_byte, text) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                     (
                         record.chunk_id.as_str(),
                         record.snapshot_id.as_str(),
@@ -222,7 +222,7 @@ impl SnapshotStore {
                         record.signature_text.as_deref(),
                         record.parent_symbol_path.as_deref(),
                         join_csv(&record.retrieval_markers),
-                        join_csv(&record.workflow_hints),
+                        join_csv(&record.repository_state_hints),
                         record.file_path.as_str(),
                         i64::from(record.start_byte),
                         i64::from(record.end_byte),

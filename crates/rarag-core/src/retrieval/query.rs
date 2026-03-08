@@ -33,22 +33,10 @@ impl QueryMode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum WorkflowPhase {
-    Spec,
-    Plan,
-    WriteTests,
-    WriteCode,
-    Verify,
-    Review,
-    Fix,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RetrievalRequest {
     pub snapshot_id: String,
     pub query_mode: QueryMode,
-    pub workflow_phase: WorkflowPhase,
     pub query_text: String,
     pub symbol_path: Option<String>,
     pub limit: usize,
@@ -59,13 +47,11 @@ impl RetrievalRequest {
     pub fn new(
         snapshot_id: impl Into<String>,
         query_mode: QueryMode,
-        workflow_phase: WorkflowPhase,
         query_text: impl Into<String>,
     ) -> Self {
         Self {
             snapshot_id: snapshot_id.into(),
             query_mode,
-            workflow_phase,
             query_text: query_text.into(),
             symbol_path: None,
             limit: query_mode.neighborhood_cap(),

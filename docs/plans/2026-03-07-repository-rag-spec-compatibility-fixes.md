@@ -82,7 +82,7 @@ This plan does not redesign retrieval modes, snapshot identity, or the daemon re
   - standard MCP initialization, tool listing, and tool call flow over the Unix socket
   - indexing of `examples/` Rust files
   - indexing of runnable Rust doctest code blocks
-  - Tantivy document coverage for symbol name, docs text, signature text, example/test markers, and workflow hints
+  - Tantivy document coverage for symbol name, docs text, signature text, example/test markers, and repository-state hints
 
 **Tests (must exist before implementation)**
 
@@ -295,7 +295,7 @@ Expected: all example/doctest chunk tests pass.
   - file path
   - chunk kind
   - test/example/doctest markers
-  - workflow hints where available
+  - repository-state hints where available
 - Query parsing uses the richer lexical fields for hybrid candidate recall.
 
 **Tests (must exist before implementation)**

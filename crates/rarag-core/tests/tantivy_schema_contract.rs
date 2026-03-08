@@ -32,5 +32,5 @@ fn maps_chunk_fields_to_rich_lexical_document() {
     assert!(schema.get_field("docs_text").is_ok());
     assert!(schema.get_field("signature_text").is_ok());
     assert!(schema.get_field("retrieval_markers").is_ok());
-    assert!(schema.get_field("workflow_hints").is_ok());
+    assert!(schema.get_field("repository_state_hints").is_ok());
 }

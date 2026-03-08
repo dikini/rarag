@@ -6,7 +6,7 @@ use crate::embeddings::EmbeddingProvider;
 use crate::indexing::{QdrantPointStore, TantivyChunkStore};
 use crate::metadata::{QueryAuditRecord, SnapshotStore};
 use neighborhood::assemble_neighborhood;
-pub use query::{QueryMode, RetrievalRequest, RetrievalResponse, RetrievedChunk, WorkflowPhase};
+pub use query::{QueryMode, RetrievalRequest, RetrievalResponse, RetrievedChunk};
 use rerank::{Candidate, rerank_candidates};
 
 pub struct RepositoryRetriever<'a, P> {
@@ -113,7 +113,6 @@ where
         let items = rerank_candidates(
             &request.snapshot_id,
             request.query_mode,
-            request.workflow_phase,
             &request.worktree_changes,
             candidates,
             request.effective_limit(),

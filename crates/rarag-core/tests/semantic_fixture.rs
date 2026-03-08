@@ -4,7 +4,7 @@ use rarag_core::chunking::RustChunker;
 use rarag_core::embeddings::EmbeddingProvider;
 use rarag_core::indexing::{ChunkIndexer, QdrantPointStore, TantivyChunkStore};
 use rarag_core::metadata::SnapshotStore;
-use rarag_core::retrieval::{QueryMode, RepositoryRetriever, RetrievalRequest, WorkflowPhase};
+use rarag_core::retrieval::{QueryMode, RepositoryRetriever, RetrievalRequest};
 use rarag_core::semantic::{RustAnalyzerEnricher, SemanticEdgeKind};
 use rarag_core::snapshot::SnapshotKey;
 use rarag_core::worktree::WorktreeChanges;
@@ -163,7 +163,6 @@ fn bounded_refactor_uses_impl_and_test_edges() {
                 RetrievalRequest::new(
                     snapshot_id,
                     QueryMode::BoundedRefactor,
-                    WorkflowPhase::Review,
                     "refactor Data safely",
                 )
                 .with_symbol_path("mini_repo::Data")

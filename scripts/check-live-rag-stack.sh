@@ -118,7 +118,6 @@ done
     --socket "$daemon_socket" \
     --worktree-root "$worktree_root" \
     --mode understand-symbol \
-    --phase plan \
     --text example_sum \
     --symbol-path mini_repo::example_sum \
     --json >"$runtime_dir/cli-query.json"
@@ -127,7 +126,6 @@ done
     --config "$config_path" \
     --socket "$daemon_socket" \
     --worktree-root "$worktree_root" \
-    --phase review \
     --text Data \
     --symbol-path mini_repo::Data \
     --changed-path src/lib.rs \
@@ -144,7 +142,6 @@ sock.sendall(json.dumps({
     "arguments": {
         "worktree_root": sys.argv[2],
         "mode": "implement-adjacent",
-        "phase": "write-code",
         "text": "Data incremented helper",
         "symbol_path": "mini_repo::impl::Data",
         "limit": "4"
