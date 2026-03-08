@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
+use std::{io::Cursor, iter};
 
 use rarag_core::daemon::{DaemonRequest, DaemonResponse, QueryPayload};
 use rarag_core::ipc::{
@@ -110,6 +111,18 @@ fn serializes_reload_request() {
     let body = serde_json::to_string(&DaemonRequest::ReloadConfig).expect("serialize request");
 
     assert!(body.contains("\"kind\":\"reload-config\""));
+}
+
+#[test]
+fn read_framed_response_accepts_large_payload() {
+    let payload: Vec<u8> = iter::repeat_n(b'x', DAEMON_MAX_MESSAGE_BYTES + 1024).collect();
+    let framed = rarag_core::ipc::encode_framed_message(&payload).expect("encode large payload");
+    let mut reader = Cursor::new(framed);
+
+    let decoded = read_framed_message(&mut reader).expect("large framed response should decode");
+
+    assert_eq!(decoded.len(), payload.len());
+    assert_eq!(decoded, payload);
 }
 
 #[test]

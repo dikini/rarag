@@ -1,5 +1,8 @@
 use rarag_core::daemon::{DaemonRequest, DaemonResponse, ErrorResponse};
-use rarag_core::ipc::{DAEMON_READ_TIMEOUT, decode_frame_len, encode_framed_message};
+use rarag_core::ipc::{
+    DAEMON_MAX_MESSAGE_BYTES, DAEMON_READ_TIMEOUT, decode_bounded_frame_len,
+    encode_framed_message,
+};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 use tokio::time::timeout;
@@ -10,7 +13,7 @@ pub async fn read_request(stream: &mut UnixStream) -> Result<DaemonRequest, Stri
         .await
         .map_err(|_| "daemon request timed out".to_string())?
         .map_err(|err| err.to_string())?;
-    let len = decode_frame_len(header)?;
+    let len = decode_bounded_frame_len(header, DAEMON_MAX_MESSAGE_BYTES, "daemon request")?;
     let mut body = vec![0_u8; len];
     timeout(DAEMON_READ_TIMEOUT, stream.read_exact(&mut body))
         .await

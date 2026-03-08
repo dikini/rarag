@@ -32,6 +32,7 @@ The format is based on Common Changelog:
 ### Fixed
 
 - Fixed local Unix-socket hardening so daemon and MCP request reads are size-bounded and time-limited, and so socket startup no longer tightens permissions on pre-existing parent directories.
+- Fixed daemon framed-response decoding so valid query payloads larger than the inbound request ceiling still round-trip through the CLI and MCP daemon clients.
 - Added MCP protocol compatibility regressions, example/doctest chunking regressions, and rich Tantivy schema contract tests for the repository RAG compatibility work.
 
 ### Changed

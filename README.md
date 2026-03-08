@@ -89,6 +89,7 @@ Observability behavior:
 - `detailed` also emits one structured candidate event per ranked candidate
 - when observability is enabled, retrieval history is also persisted to the metadata DB for offline eval generation
 - Local daemon and MCP Unix-socket servers enforce bounded request sizes and short read deadlines so stalled or oversized local clients fail fast instead of blocking the endpoint indefinitely
+- Daemon request limits apply to inbound request frames; valid daemon responses are not capped by that inbound ceiling
 
 ## Runtime Operations
 

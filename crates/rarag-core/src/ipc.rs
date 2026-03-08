@@ -14,11 +14,19 @@ pub fn encode_framed_message(body: &[u8]) -> Result<Vec<u8>, String> {
     Ok(framed)
 }
 
-pub fn decode_frame_len(header: [u8; 4]) -> Result<usize, String> {
+pub fn decode_frame_len(header: [u8; 4]) -> usize {
+    u32::from_be_bytes(header) as usize
+}
+
+pub fn decode_bounded_frame_len(
+    header: [u8; 4],
+    max_bytes: usize,
+    kind: &str,
+) -> Result<usize, String> {
     let len = u32::from_be_bytes(header) as usize;
-    if len > LOCAL_IPC_MAX_MESSAGE_BYTES {
+    if len > max_bytes {
         return Err(format!(
-            "daemon message too large: {len} bytes exceeds limit {LOCAL_IPC_MAX_MESSAGE_BYTES}"
+            "{kind} too large: {len} bytes exceeds limit {max_bytes}"
         ));
     }
     Ok(len)
@@ -34,7 +42,7 @@ pub fn read_framed_message<R: Read>(reader: &mut R) -> Result<Vec<u8>, String> {
     reader
         .read_exact(&mut header)
         .map_err(|err| err.to_string())?;
-    let len = decode_frame_len(header)?;
+    let len = decode_frame_len(header);
     let mut body = vec![0_u8; len];
     reader
         .read_exact(&mut body)
