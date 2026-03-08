@@ -6,6 +6,7 @@ use std::sync::{Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use rarag_core::ipc::{read_framed_message, write_framed_message};
 use serde_json::Value;
 use tempfile::tempdir;
 
@@ -91,24 +92,35 @@ fn probe_server(binary: &str, socket_path: &Path) -> Result<(), String> {
     };
 
     let mut stream = UnixStream::connect(socket_path).map_err(|err| err.to_string())?;
-    stream
-        .write_all(
-            serde_json::to_vec(&body)
-                .map_err(|err| err.to_string())?
-                .as_slice(),
-        )
-        .map_err(|err| err.to_string())?;
-    stream
-        .shutdown(std::net::Shutdown::Write)
-        .map_err(|err| err.to_string())?;
-    let mut response = Vec::new();
-    stream
-        .read_to_end(&mut response)
-        .map_err(|err| err.to_string())?;
-    if response.is_empty() {
-        Err("empty probe response".to_string())
+    if binary == "raragd" {
+        let body = serde_json::to_vec(&body).map_err(|err| err.to_string())?;
+        write_framed_message(&mut stream, &body)?;
+        let response = read_framed_message(&mut stream)?;
+        if response.is_empty() {
+            Err("empty probe response".to_string())
+        } else {
+            Ok(())
+        }
     } else {
-        Ok(())
+        stream
+            .write_all(
+                serde_json::to_vec(&body)
+                    .map_err(|err| err.to_string())?
+                    .as_slice(),
+            )
+            .map_err(|err| err.to_string())?;
+        stream
+            .shutdown(std::net::Shutdown::Write)
+            .map_err(|err| err.to_string())?;
+        let mut response = Vec::new();
+        stream
+            .read_to_end(&mut response)
+            .map_err(|err| err.to_string())?;
+        if response.is_empty() {
+            Err("empty probe response".to_string())
+        } else {
+            Ok(())
+        }
     }
 }
 

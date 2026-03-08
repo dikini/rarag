@@ -7,6 +7,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use rarag_core::daemon::DaemonRequest;
+use rarag_core::ipc::{read_framed_message, write_framed_message};
 use rarag_core::snapshot::SnapshotKey;
 use serde_json::{Value, json};
 use tempfile::tempdir;
@@ -58,7 +59,12 @@ fn spawn_server(binary: &str, args: &[&str], socket_path: &Path, probe: Value) -
         .expect("spawn server");
     let deadline = Instant::now() + Duration::from_secs(10);
     while Instant::now() < deadline {
-        if socket_path.exists() && json_request(socket_path, &probe).is_ok() {
+        let ready = if binary == "raragd" {
+            daemon_json_request(socket_path, &probe).is_ok()
+        } else {
+            json_request(socket_path, &probe).is_ok()
+        };
+        if socket_path.exists() && ready {
             return child;
         }
         if let Some(status) = child.try_wait().expect("server status") {
@@ -89,16 +95,15 @@ fn json_request(socket_path: &Path, body: &Value) -> Result<Value, String> {
 }
 
 fn daemon_request(socket_path: &Path, body: &DaemonRequest) -> Result<Value, String> {
+    let body = serde_json::to_value(body).map_err(|err| err.to_string())?;
+    daemon_json_request(socket_path, &body)
+}
+
+fn daemon_json_request(socket_path: &Path, body: &Value) -> Result<Value, String> {
     let mut stream = UnixStream::connect(socket_path).map_err(|err| err.to_string())?;
     let bytes = serde_json::to_vec(body).map_err(|err| err.to_string())?;
-    stream.write_all(&bytes).map_err(|err| err.to_string())?;
-    stream
-        .shutdown(std::net::Shutdown::Write)
-        .map_err(|err| err.to_string())?;
-    let mut response = Vec::new();
-    stream
-        .read_to_end(&mut response)
-        .map_err(|err| err.to_string())?;
+    write_framed_message(&mut stream, &bytes)?;
+    let response = read_framed_message(&mut stream)?;
     serde_json::from_slice(&response).map_err(|err| err.to_string())
 }
 

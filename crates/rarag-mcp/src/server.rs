@@ -3,6 +3,7 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 
 use rarag_core::daemon::{DaemonRequest, QueryPayload};
+use rarag_core::ipc::{read_framed_message, write_framed_message};
 use rarag_core::retrieval::QueryMode;
 use rarag_core::unix_socket::prepare_socket_path;
 use serde_json::{Value, json};
@@ -255,14 +256,8 @@ fn send_daemon_request(
 ) -> Result<rarag_core::daemon::DaemonResponse, String> {
     let mut stream = UnixStream::connect(socket_path).map_err(|err| err.to_string())?;
     let body = serde_json::to_vec(request).map_err(|err| err.to_string())?;
-    stream.write_all(&body).map_err(|err| err.to_string())?;
-    stream
-        .shutdown(std::net::Shutdown::Write)
-        .map_err(|err| err.to_string())?;
-    let mut response = Vec::new();
-    stream
-        .read_to_end(&mut response)
-        .map_err(|err| err.to_string())?;
+    write_framed_message(&mut stream, &body)?;
+    let response = read_framed_message(&mut stream)?;
     serde_json::from_slice(&response).map_err(|err| err.to_string())
 }
 
