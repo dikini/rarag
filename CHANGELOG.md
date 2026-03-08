@@ -40,6 +40,7 @@ The format is based on Common Changelog:
 - Changed `rarag-mcp` to accept JSON-RPC/MCP-style initialize, tool discovery, and tool call messages over the Unix socket while retaining the legacy local protocol as a compatibility shim for existing tests.
 - Changed structural chunking and metadata to carry docs text, signature text, parent relationships, retrieval markers, and repository-state hints across `src/`, `examples/`, integration tests, and extracted Rust doctests.
 - Changed the runtime query contract to drop workflow-phase inputs from `rarag-core`, `rarag`, `raragd`, and `rarag-mcp`, and renamed lexical/storage hint fields from `workflow_hints` to `repository_state_hints`.
+- Changed project policy to treat backward compatibility as out of scope until the first release unless a spec or plan explicitly requires it.
 
 ### Fixed
 

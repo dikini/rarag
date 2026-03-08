@@ -30,6 +30,12 @@ Rust baseline (if applicable):
   - direction of sync
   - file scope
 
+## Pre-Release Compatibility Policy
+
+- Before the first release, backward compatibility is out of scope by default.
+- Pre-release schema, storage, CLI, MCP, and config compatibility should not be preserved unless explicitly stated in the relevant spec, plan, or task.
+- When compatibility is intentionally unsupported, prefer simpler code over migration or compatibility layers.
+
 ## Documentation Workflow (`docs/`)
 
 - `docs/specs/` stores canonical behavior/invariant specs.
