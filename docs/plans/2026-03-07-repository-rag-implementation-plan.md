@@ -12,7 +12,7 @@
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 Goal: Build a simple Rust-first repository assistance RAG with hybrid retrieval, worktree-aware snapshots, and local CLI plus MCP access over Unix sockets.
-Architecture: A single Rust workspace contains `rarag-core`, `raragd`, `rarag`, and `rarag-mcp`. `rarag-core` owns chunking, indexing, retrieval, and workflow-aware neighborhood assembly; the daemon owns warm state and a Unix-socket API; CLI and MCP are thin clients.
+Architecture: A single Rust workspace contains `rarag-core`, `raragd`, `rarag`, and `rarag-mcp`. `rarag-core` owns chunking, indexing, retrieval, and query-mode-driven neighborhood assembly; the daemon owns warm state and a Unix-socket API; CLI and MCP are thin clients.
 Tech Stack: Rust 1.93+, edition 2024, `turso`, `tantivy`, `qdrant-client`, `ra_ap_syntax`, `ra_ap_ide`, `tokio`, `serde`, `clap`, `tracing`, Unix domain sockets, OpenAI-compatible embeddings over HTTP.
 Template-Profile: tdd-strict-v1
 
@@ -475,13 +475,13 @@ Re-run: `cargo test -p rarag-core --test index_pipeline -- --nocapture`
 **Preconditions**
 
 - Hybrid stores are queryable.
-- Chunk edges and workflow enums exist.
+- Chunk edges and query mode definitions exist.
 
 **Invariants**
 
 - Neighborhood expansion is bounded by mode.
 - Exact symbol matches outrank approximate vector matches for the same snapshot.
-- Workflow phase affects reranking and context assembly.
+- Query mode and repository-state signals affect reranking and context assembly.
 
 **Postconditions**
 
@@ -510,7 +510,7 @@ Expected: failing tests for this task only because retrieval modules do not exis
 
 **Implementation Steps**
 
-1. Define workflow phase and query mode enums.
+1. Define query mode enums and repository-state hint inputs.
 2. Implement hybrid candidate search, bounded graph expansion, and reranking.
 3. Implement neighborhood assembly payloads with ranking evidence.
 4. Update `CHANGELOG.md`.
@@ -715,7 +715,7 @@ Re-run: `cargo test -p rarag-core --test daemon_transport -- --nocapture`
 **Tests (must exist before implementation)**
 
 Unit:
-- `daemon_cli_mcp::cli_parses_phase_and_mode_flags`
+- `daemon_cli_mcp::cli_parses_mode_and_snapshot_flags`
 - `daemon_cli_mcp::mcp_tool_names_match_contract`
 
 Invariant:
@@ -761,6 +761,26 @@ Re-run: `cargo test -p rarag-core --test daemon_cli_mcp -- --nocapture`
 
 Workflow enforcement and orchestration are intentionally out of scope for `rarag`.
 
-- Retrieval remains `workflow phase` aware so agents can ask for context appropriate to `spec`, `plan`, `tests`, `code`, `verify`, `review`, or `fix`.
-- Enforcement of review/fix iteration limits, verification gates, and higher-level orchestration remains in scripts, docs, policy, or external tools such as `sharo`.
+- Retrieval is driven by repository-assistance `query mode`, snapshot identity, and repository-state hints such as symbol, path, and diff scope.
+- Enforcement of verification gates and higher-level orchestration remains in scripts, docs, policy, or external tools such as `sharo`.
 - No `rarag-core`, daemon, CLI, or MCP runtime module should attempt to own or enforce the project workflow state machine.
+
+## Follow-On Alignment Tasks
+
+### Documentation Updates
+
+- Remove remaining `workflow phase`, `phase-aware`, and `--phase` references from repository-RAG docs and examples.
+- Rewrite retrieval rationale to explain why snapshot identity and repository state replace explicit workflow-phase inputs.
+- Verify CLI, MCP, and storage docs describe repository-assistance modes only.
+
+### Code Updates
+
+- Remove runtime types, parsing, and transport fields that model workflow phase across `rarag-core`, `rarag`, `raragd`, and `rarag-mcp`.
+- Simplify reranking and retrieval APIs to accept `query mode` plus repository-state hints only.
+- Remove any indexing or lexical metadata that exists solely to support workflow-phase-aware retrieval.
+
+### Test Updates
+
+- Replace phase parsing and phase-aware reranking tests with coverage for query-mode-only retrieval and repository-state hint handling.
+- Update CLI and MCP contract tests to assert the absence of `--phase` and phase-carrying request fields.
+- Keep snapshot-boundary, neighborhood-bound, and diff-locality regressions to preserve retrieval quality after the refactor.

@@ -57,7 +57,7 @@ Related Task Registry ID: `2026-03-07-shared-config`
 - Snapshot-aware indexing keyed by repository, git worktree, commit SHA, target triple, feature set, and cfg profile.
 - Local developer use through a CLI and a local MCP server over Unix sockets.
 - Shared TOML configuration for `rarag`, `raragd`, and `rarag-mcp`, with code defaults that remain overridable.
-- Retrieval modes tuned for workflow phases and repository-assistance tasks.
+- Retrieval modes tuned for repository-assistance tasks.
 - Test-first development and verification-aware repository assistance.
 
 ### Out of Scope
@@ -76,7 +76,6 @@ Related Task Registry ID: `2026-03-07-shared-config`
 - `body region`: A subordinate chunk created when a symbol body exceeds size limits; it must retain its owning symbol header and symbol id.
 - `edge`: A typed relationship between chunks or symbols such as `contains`, `references`, `implements`, or `tested_by`.
 - `neighborhood`: A bounded set of chunks assembled around one or more target symbols for a specific retrieval request.
-- `workflow phase`: One of `spec`, `plan`, `tests`, `code`, `verify`, `review`, or `fix` used to bias retrieval and reranking.
 - `query mode`: One of `understand-symbol`, `implement-adjacent`, `bounded-refactor`, `find-examples`, or `blast-radius`.
 - `daemon`: The long-lived local process that owns open indexes, background indexing, and the Unix-socket service surface.
 - `worktree lineage`: The set of snapshots derived from a single git worktree over time.
@@ -113,7 +112,7 @@ The architecture consists of four Rust crates in one workspace:
 ### Storage Contract
 
 - Turso stores snapshot metadata, chunk metadata, graph edges, indexing runs, query audit rows, and provider configuration metadata.
-- Tantivy stores lexical fields for chunk text, symbol path, symbol name, docs text, extracted signature text, file path, chunk kind, test/example markers, and workflow hints.
+- Tantivy stores lexical fields for chunk text, symbol path, symbol name, docs text, extracted signature text, file path, chunk kind, test/example markers, and repository-state hints.
 - Qdrant stores chunk vectors and optional reranking helper payloads keyed by `chunk_id` and `snapshot_id`.
 - All three stores must use the same stable `chunk_id` and `snapshot_id` values.
 
@@ -146,7 +145,6 @@ The architecture consists of four Rust crates in one workspace:
 Inputs:
 
 - `snapshot selector`: exact snapshot id or a resolver input such as repo root plus worktree root.
-- `workflow phase`
 - `query mode`
 - `query text`
 - optional symbol hint, file hint, path filters, and diff scope
@@ -163,7 +161,7 @@ Retrieval order:
 1. resolve snapshot
 2. run hybrid candidate search via Tantivy and Qdrant
 3. perform bounded graph expansion
-4. rerank with workflow phase and diff/worktree locality
+4. rerank with diff/worktree locality plus query-mode-specific signals
 5. assemble compact neighborhood
 
 ### CLI Contract
@@ -184,7 +182,6 @@ Required flags:
 
 - `--repo-root`
 - `--worktree`
-- `--phase`
 - `--mode`
 - `--json`
 - `--snapshot`
@@ -235,7 +232,7 @@ All paths must be overridable by config or CLI flags.
 - Tests and examples remain first-class retrieval candidates, not optional decorations.
 - Query neighborhoods stay bounded and mode-specific; retrieval must not degenerate into whole-file dumping.
 - The system surfaces evidence and uncertainty instead of hiding stale or missing semantic data.
-- Development workflow support is phase-aware for retrieval and reranking only; workflow enforcement remains in scripts, docs, and external orchestration.
+- Development workflow enforcement remains in scripts, docs, and external orchestration rather than retrieval contracts or runtime flags.
 - Config defaults remain available even when no config file exists.
 - Shared config semantics remain consistent across CLI, daemon, and MCP binaries.
 - The MCP transport remains interoperable with standard local MCP clients over Unix sockets.
@@ -380,12 +377,12 @@ Property-based (optional):
 **Preconditions**
 
 - Hybrid candidate stores are queryable.
-- Chunk edges and workflow phase enums are defined.
+- Chunk edges and query mode enums are defined.
 
 **Invariants**
 
 - Neighborhood expansion remains bounded.
-- Workflow phase and query mode affect reranking and assembly.
+- Query mode and repository-state signals affect reranking and assembly.
 - Exact symbol or path matches outrank vague semantic matches when both refer to the same snapshot.
 
 **Postconditions**
@@ -441,7 +438,7 @@ Integration:
 Property-based (optional):
 - none
 
-### Task 7: Deliver Unix-Socket Clients and Workflow Support
+### Task 7: Deliver Unix-Socket Clients
 
 **Preconditions**
 
@@ -492,8 +489,8 @@ Property-based (optional):
    - Input: a target symbol and selected worktree.
    - Expected retrieval: impacted files, symbols, tests, and docs within the selected snapshot only.
 
-5. `workflow-aware review`
-   - Input: review phase plus changed file set.
+5. `diff-local review`
+   - Input: changed file set plus an optional symbol or path hint.
    - Expected retrieval: invariants, tests, and high-risk references near the current diff before proposing fixes.
 
 ## Verification

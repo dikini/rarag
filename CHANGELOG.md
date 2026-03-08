@@ -18,7 +18,7 @@ The format is based on Common Changelog:
 - Added the Turso-backed metadata schema and snapshot store with indexing-run and query-audit recording.
 - Added the first `ra_ap_syntax` structural chunker with workspace fixture coverage for symbols, tests, and oversized body-region splits.
 - Added Tantivy indexing, prepared Qdrant point ingestion, and an OpenAI-compatible embedding request builder tied together through snapshot reindexing.
-- Added workflow-aware retrieval modes with bounded neighborhood assembly, ranking evidence, and snapshot-local hybrid lookup.
+- Added repository-assistance retrieval modes with bounded neighborhood assembly, ranking evidence, and snapshot-local hybrid lookup.
 - Added a checked-in OpenAI-compatible example config that references environment variables instead of secrets.
 - Added heuristic semantic enrichment, snapshot-scoped semantic edges, and worktree-diff reranking bias for bounded refactor and review workflows.
 - Added a Unix-socket daemon API with snapshot-aware index, query, status, and shutdown requests backed by the shared repository retrieval pipeline.
@@ -38,17 +38,19 @@ The format is based on Common Changelog:
 - Changed the CLI and MCP contract implementations to expose the spec-named command and tool surfaces while preserving compatibility aliases for existing callers.
 - Clarified the architecture spec so MCP means actual MCP-compatible Unix-socket transport, and so chunking plus lexical storage requirements explicitly cover examples, doctests, docs text, signatures, and retrieval markers.
 - Changed `rarag-mcp` to accept JSON-RPC/MCP-style initialize, tool discovery, and tool call messages over the Unix socket while retaining the legacy local protocol as a compatibility shim for existing tests.
-- Changed structural chunking and metadata to carry docs text, signature text, parent relationships, retrieval markers, and workflow hints across `src/`, `examples/`, integration tests, and extracted Rust doctests.
+- Changed structural chunking and metadata to carry docs text, signature text, parent relationships, retrieval markers, and repository-state hints across `src/`, `examples/`, integration tests, and extracted Rust doctests.
 
 ### Fixed
 
 - Excluded local `target/` build artifacts from `scripts/init-from-backbone.sh` copies so starter repository initialization stays deterministic and does not pull developer build output into generated repos.
 - Fixed worktree-root snapshot resolution to select the latest snapshot instead of failing after repeated indexing, switched the operational vector store to endpoint-backed Qdrant with an explicit test-only in-memory fallback, and hardened Unix-socket cleanup to refuse non-socket paths.
 - Fixed retrieval to restore BM25/Tantivy candidate search alongside vector search, added automated CLI and MCP contract regressions, and moved non-`XDG_RUNTIME_DIR` socket defaults into private per-user runtime directories with `0700` permissions.
-- Fixed CLI and MCP phase parsing to accept the spec aliases `tests` and `code`, and added integration coverage for phase aliases plus the home-state runtime socket fallback.
+- Fixed CLI and MCP retrieval contracts to align on repository-assistance modes and home-state runtime socket fallback coverage.
 - Fixed lexical retrieval so code-like queries fall back to normalized BM25 parsing instead of failing on Tantivy syntax errors, and expanded lexical indexing to cover symbol names, docs text, signatures, and retrieval markers.
 
 ### Removed
+
+- Removed workflow-phase-aware retrieval from the repository RAG architecture, design, and implementation plan; repository state and snapshot-local signals are now the only runtime retrieval context beyond query mode.
 
 ### Deprecated
 

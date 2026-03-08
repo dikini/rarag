@@ -33,7 +33,7 @@ Template-Profile: tdd-strict-v1
 
 ## Completion Gate
 
-- The design is complete only when the architecture, storage model, retrieval model, worktree model, and workflow fit are all explicit.
+- The design is complete only when the architecture, storage model, retrieval model, worktree model, and runtime boundary are all explicit.
 - Completion also requires doc verification evidence and changelog/task-registry alignment.
 
 ## Model Compatibility Notes
@@ -93,7 +93,7 @@ Use hybrid retrieval:
 
 The lexical side must include symbol names, docs text, signatures, and example/test markers so repository assistance does not collapse into vector-only retrieval.
 
-Retrieval is always snapshot-scoped and task-aware.
+Retrieval is always snapshot-scoped and tuned to repository-assistance task modes.
 
 ### Snapshot Model
 
@@ -112,19 +112,11 @@ This prevents incompatible semantic worlds from mixing, especially across worktr
 
 The MVP uses a real `OpenAI-compatible HTTP embeddings` provider configured by environment variables. Chunk and query embeddings use the same model per snapshot lineage.
 
-### Workflow Alignment
+### Retrieval Alignment
 
-The system is designed to support the project workflow:
+The system is designed to support repository-assistance tasks directly through `query mode` and repository-state signals.
 
-1. spec
-2. plan
-3. tests
-4. code
-5. verify
-6. review
-7. fix
-
-Retrieval requests carry both a `workflow phase` and a `query mode`, so results can bias toward invariants, nearby examples, tests, or refactor blast radius depending on the current step.
+Retrieval requests carry a `query mode` plus snapshot-local hints such as symbol, path, and diff scope. Reranking can bias toward invariants, nearby examples, tests, or refactor blast radius based on the requested repository-assistance task and the selected snapshot, without carrying an explicit workflow-phase parameter through the runtime.
 
 Workflow enforcement remains outside the runtime and is handled by scripts, docs, and external orchestration rather than `rarag` binaries.
 
@@ -199,7 +191,7 @@ Expected: fail until the design document contains the required strict-profile se
 **Implementation Steps**
 
 1. Record the selected architecture, storage, and transport choices.
-2. Record workflow, worktree, and retrieval boundaries.
+2. Record runtime, worktree, and retrieval boundaries.
 3. Align the design summary with the spec and implementation plan.
 
 **Green Phase (required)**
