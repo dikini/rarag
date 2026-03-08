@@ -131,3 +131,47 @@ dimensions = 1536
     );
     assert_eq!(config.embeddings.endpoint_path, "v1/embeddings");
 }
+
+#[test]
+fn toml_overrides_rerank_and_observability() {
+    let _guard = env_lock().lock().expect("env lock");
+    let dir = tempdir().expect("tempdir");
+    let explicit = dir.path().join("rarag.toml");
+
+    write_config(
+        &explicit,
+        r#"
+[retrieval.rerank]
+find_examples_example_like = 1.3
+worktree_diff_blast_radius = 2.0
+
+[retrieval.neighborhood]
+same_file = 4.4
+semantic_test_find_examples = 8.8
+
+[observability]
+enabled = true
+verbosity = "summary"
+"#,
+    );
+
+    unsafe {
+        std::env::remove_var("RARAG_CONFIG");
+        std::env::remove_var("XDG_CONFIG_HOME");
+    }
+
+    let config = load_app_config(Some(&explicit)).expect("load explicit config");
+
+    assert_eq!(config.retrieval.rerank.find_examples_example_like, 1.3);
+    assert_eq!(config.retrieval.rerank.worktree_diff_blast_radius, 2.0);
+    assert_eq!(config.retrieval.neighborhood.same_file, 4.4);
+    assert_eq!(
+        config.retrieval.neighborhood.semantic_test_find_examples,
+        8.8
+    );
+    assert!(config.observability.enabled);
+    assert_eq!(
+        config.observability.verbosity.to_string(),
+        "summary"
+    );
+}

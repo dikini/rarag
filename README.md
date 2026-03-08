@@ -60,6 +60,16 @@ rarag query --worktree "$PWD" --mode understand-symbol --text "snapshot store"
 - Config is shared across `rarag`, `raragd`, and `rarag-mcp`
 - Code defaults remain usable when no config file exists
 - Override order is defined in the architecture spec and implemented in `rarag-core`
+- Retrieval scoring can be tuned through:
+  - `[retrieval.rerank]`
+  - `[retrieval.neighborhood]`
+- Observability is opt-in and controlled through:
+  - `[observability] enabled = true | false`
+  - `[observability] verbosity = "off" | "summary" | "detailed"`
+- Live daemon config reload is available through:
+  - `SIGHUP`
+  - `rarag daemon reload`
+  - MCP tool `rag_reload_config`
 
 Secrets policy:
 
@@ -73,12 +83,19 @@ Default live embedding shape:
 - `endpoint_path = "/embeddings"`
 - `model = "text-embedding-3-small"`
 
+Observability behavior:
+
+- `summary` emits one structured retrieval event per query
+- `detailed` also emits one structured candidate event per ranked candidate
+- when observability is enabled, retrieval history is also persisted to the metadata DB for offline eval generation
+
 ## Runtime Operations
 
 - Qdrant runtime guide: `docs/ops/qdrant-runtime.md`
 - Live stack verification: `scripts/check-live-rag-stack.sh`
 - Deterministic local and CI tests do not require live Qdrant or live embedding calls
 - Live daemon operation does require a reachable Qdrant endpoint and embedding credentials
+- Config reload is validate-then-swap; failed reloads keep the last known-good daemon settings active
 
 ## Development Workflow
 

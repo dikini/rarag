@@ -6,9 +6,20 @@ use serde::Deserialize;
 use crate::config::{AppConfig, CliConfig, DaemonConfig, McpConfig};
 
 pub fn load_app_config(explicit_path: Option<&Path>) -> Result<AppConfig, String> {
-    let mut config = AppConfig::default();
+    load_app_config_with_source(explicit_path).map(|loaded| loaded.config)
+}
 
-    if let Some(path) = resolve_config_path(explicit_path) {
+#[derive(Debug, Clone)]
+pub struct LoadedAppConfig {
+    pub config: AppConfig,
+    pub source_path: Option<PathBuf>,
+}
+
+pub fn load_app_config_with_source(explicit_path: Option<&Path>) -> Result<LoadedAppConfig, String> {
+    let mut config = AppConfig::default();
+    let source_path = resolve_config_path(explicit_path);
+
+    if let Some(path) = source_path.as_ref() {
         let body = std::fs::read_to_string(&path)
             .map_err(|err| format!("failed to read config {}: {err}", path.display()))?;
         let overrides: PartialAppConfig = toml::from_str(&body)
@@ -16,7 +27,10 @@ pub fn load_app_config(explicit_path: Option<&Path>) -> Result<AppConfig, String
         apply_overrides(&mut config, overrides);
     }
 
-    Ok(config)
+    Ok(LoadedAppConfig {
+        config,
+        source_path,
+    })
 }
 
 fn resolve_config_path(explicit_path: Option<&Path>) -> Option<PathBuf> {
@@ -109,6 +123,148 @@ fn apply_overrides(config: &mut AppConfig, overrides: PartialAppConfig) {
         }
     }
 
+    if let Some(retrieval) = overrides.retrieval {
+        if let Some(rerank) = retrieval.rerank {
+            let resolved = &mut config.retrieval.rerank;
+            if let Some(value) = rerank.understand_symbol_symbol {
+                resolved.understand_symbol_symbol = value;
+            }
+            if let Some(value) = rerank.implement_adjacent_body_region {
+                resolved.implement_adjacent_body_region = value;
+            }
+            if let Some(value) = rerank.bounded_refactor_test_like {
+                resolved.bounded_refactor_test_like = value;
+            }
+            if let Some(value) = rerank.bounded_refactor_other {
+                resolved.bounded_refactor_other = value;
+            }
+            if let Some(value) = rerank.blast_radius_test_like {
+                resolved.blast_radius_test_like = value;
+            }
+            if let Some(value) = rerank.blast_radius_other {
+                resolved.blast_radius_other = value;
+            }
+            if let Some(value) = rerank.find_examples_example_like {
+                resolved.find_examples_example_like = value;
+            }
+            if let Some(value) = rerank.find_examples_other {
+                resolved.find_examples_other = value;
+            }
+            if let Some(value) = rerank.worktree_diff_understand_symbol {
+                resolved.worktree_diff_understand_symbol = value;
+            }
+            if let Some(value) = rerank.worktree_diff_implement_adjacent {
+                resolved.worktree_diff_implement_adjacent = value;
+            }
+            if let Some(value) = rerank.worktree_diff_bounded_refactor {
+                resolved.worktree_diff_bounded_refactor = value;
+            }
+            if let Some(value) = rerank.worktree_diff_blast_radius {
+                resolved.worktree_diff_blast_radius = value;
+            }
+            if let Some(value) = rerank.worktree_diff_find_examples {
+                resolved.worktree_diff_find_examples = value;
+            }
+        }
+
+        if let Some(neighborhood) = retrieval.neighborhood {
+            let resolved = &mut config.retrieval.neighborhood;
+            if let Some(value) = neighborhood.exact_symbol {
+                resolved.exact_symbol = value;
+            }
+            if let Some(value) = neighborhood.same_file {
+                resolved.same_file = value;
+            }
+            if let Some(value) = neighborhood.text_reference_understand_symbol {
+                resolved.text_reference_understand_symbol = value;
+            }
+            if let Some(value) = neighborhood.text_reference_implement_adjacent {
+                resolved.text_reference_implement_adjacent = value;
+            }
+            if let Some(value) = neighborhood.text_reference_bounded_refactor {
+                resolved.text_reference_bounded_refactor = value;
+            }
+            if let Some(value) = neighborhood.text_reference_bounded_refactor_test_like {
+                resolved.text_reference_bounded_refactor_test_like = value;
+            }
+            if let Some(value) = neighborhood.text_reference_blast_radius {
+                resolved.text_reference_blast_radius = value;
+            }
+            if let Some(value) = neighborhood.text_reference_blast_radius_test_like {
+                resolved.text_reference_blast_radius_test_like = value;
+            }
+            if let Some(value) = neighborhood.text_reference_find_examples {
+                resolved.text_reference_find_examples = value;
+            }
+            if let Some(value) = neighborhood.text_reference_find_examples_test_like {
+                resolved.text_reference_find_examples_test_like = value;
+            }
+            if let Some(value) = neighborhood.test_neighbor_find_examples {
+                resolved.test_neighbor_find_examples = value;
+            }
+            if let Some(value) = neighborhood.test_neighbor_bounded_refactor {
+                resolved.test_neighbor_bounded_refactor = value;
+            }
+            if let Some(value) = neighborhood.module_context_understand_symbol {
+                resolved.module_context_understand_symbol = value;
+            }
+            if let Some(value) = neighborhood.semantic_reference_understand_symbol {
+                resolved.semantic_reference_understand_symbol = value;
+            }
+            if let Some(value) = neighborhood.semantic_reference_implement_adjacent {
+                resolved.semantic_reference_implement_adjacent = value;
+            }
+            if let Some(value) = neighborhood.semantic_reference_bounded_refactor {
+                resolved.semantic_reference_bounded_refactor = value;
+            }
+            if let Some(value) = neighborhood.semantic_reference_blast_radius {
+                resolved.semantic_reference_blast_radius = value;
+            }
+            if let Some(value) = neighborhood.semantic_reference_find_examples {
+                resolved.semantic_reference_find_examples = value;
+            }
+            if let Some(value) = neighborhood.semantic_impl_understand_symbol {
+                resolved.semantic_impl_understand_symbol = value;
+            }
+            if let Some(value) = neighborhood.semantic_impl_implement_adjacent {
+                resolved.semantic_impl_implement_adjacent = value;
+            }
+            if let Some(value) = neighborhood.semantic_impl_bounded_refactor {
+                resolved.semantic_impl_bounded_refactor = value;
+            }
+            if let Some(value) = neighborhood.semantic_impl_blast_radius {
+                resolved.semantic_impl_blast_radius = value;
+            }
+            if let Some(value) = neighborhood.semantic_impl_find_examples {
+                resolved.semantic_impl_find_examples = value;
+            }
+            if let Some(value) = neighborhood.semantic_test_understand_symbol {
+                resolved.semantic_test_understand_symbol = value;
+            }
+            if let Some(value) = neighborhood.semantic_test_implement_adjacent {
+                resolved.semantic_test_implement_adjacent = value;
+            }
+            if let Some(value) = neighborhood.semantic_test_bounded_refactor {
+                resolved.semantic_test_bounded_refactor = value;
+            }
+            if let Some(value) = neighborhood.semantic_test_blast_radius {
+                resolved.semantic_test_blast_radius = value;
+            }
+            if let Some(value) = neighborhood.semantic_test_find_examples {
+                resolved.semantic_test_find_examples = value;
+            }
+        }
+    }
+
+    if let Some(observability) = overrides.observability {
+        if let Some(enabled) = observability.enabled {
+            config.observability.enabled = enabled;
+        }
+        if let Some(verbosity) = observability.verbosity {
+            config.observability.verbosity = verbosity;
+        }
+    }
+
     if let Some(cli) = overrides.cli {
         let mut resolved = config.cli.take().unwrap_or(CliConfig {
             default_json: false,
@@ -147,6 +303,8 @@ struct PartialAppConfig {
     tantivy: Option<PartialTantivyConfig>,
     qdrant: Option<PartialQdrantConfig>,
     embeddings: Option<PartialEmbeddingProviderConfig>,
+    retrieval: Option<PartialRetrievalConfig>,
+    observability: Option<PartialObservabilityConfig>,
     cli: Option<PartialCliConfig>,
     daemon: Option<PartialDaemonConfig>,
     mcp: Option<PartialMcpConfig>,
@@ -183,6 +341,67 @@ struct PartialEmbeddingProviderConfig {
     model: Option<String>,
     api_key_env: Option<String>,
     dimensions: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct PartialRetrievalConfig {
+    rerank: Option<PartialRerankWeightsConfig>,
+    neighborhood: Option<PartialNeighborhoodWeightsConfig>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct PartialRerankWeightsConfig {
+    understand_symbol_symbol: Option<f32>,
+    implement_adjacent_body_region: Option<f32>,
+    bounded_refactor_test_like: Option<f32>,
+    bounded_refactor_other: Option<f32>,
+    blast_radius_test_like: Option<f32>,
+    blast_radius_other: Option<f32>,
+    find_examples_example_like: Option<f32>,
+    find_examples_other: Option<f32>,
+    worktree_diff_understand_symbol: Option<f32>,
+    worktree_diff_implement_adjacent: Option<f32>,
+    worktree_diff_bounded_refactor: Option<f32>,
+    worktree_diff_blast_radius: Option<f32>,
+    worktree_diff_find_examples: Option<f32>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct PartialNeighborhoodWeightsConfig {
+    exact_symbol: Option<f32>,
+    same_file: Option<f32>,
+    text_reference_understand_symbol: Option<f32>,
+    text_reference_implement_adjacent: Option<f32>,
+    text_reference_bounded_refactor: Option<f32>,
+    text_reference_bounded_refactor_test_like: Option<f32>,
+    text_reference_blast_radius: Option<f32>,
+    text_reference_blast_radius_test_like: Option<f32>,
+    text_reference_find_examples: Option<f32>,
+    text_reference_find_examples_test_like: Option<f32>,
+    test_neighbor_find_examples: Option<f32>,
+    test_neighbor_bounded_refactor: Option<f32>,
+    module_context_understand_symbol: Option<f32>,
+    semantic_reference_understand_symbol: Option<f32>,
+    semantic_reference_implement_adjacent: Option<f32>,
+    semantic_reference_bounded_refactor: Option<f32>,
+    semantic_reference_blast_radius: Option<f32>,
+    semantic_reference_find_examples: Option<f32>,
+    semantic_impl_understand_symbol: Option<f32>,
+    semantic_impl_implement_adjacent: Option<f32>,
+    semantic_impl_bounded_refactor: Option<f32>,
+    semantic_impl_blast_radius: Option<f32>,
+    semantic_impl_find_examples: Option<f32>,
+    semantic_test_understand_symbol: Option<f32>,
+    semantic_test_implement_adjacent: Option<f32>,
+    semantic_test_bounded_refactor: Option<f32>,
+    semantic_test_blast_radius: Option<f32>,
+    semantic_test_find_examples: Option<f32>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct PartialObservabilityConfig {
+    enabled: Option<bool>,
+    verbosity: Option<crate::config::ObservabilityVerbosity>,
 }
 
 #[derive(Debug, Deserialize, Default)]

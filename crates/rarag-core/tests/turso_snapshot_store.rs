@@ -4,7 +4,11 @@ use rarag_core::snapshot::SnapshotKey;
 use tempfile::tempdir;
 use tokio::runtime::Runtime;
 
-use rarag_core::metadata::{IndexingRunRecord, QueryAuditRecord, SnapshotStore};
+use rarag_core::config::{ObservabilityConfig, ObservabilityVerbosity, RetrievalConfig};
+use rarag_core::metadata::{
+    CandidateObservationRecord, IndexingRunRecord, QueryAuditRecord, QueryObservationRecord,
+    SnapshotStore,
+};
 
 fn sample_snapshot(worktree_root: &str) -> SnapshotKey {
     SnapshotKey::new(
@@ -150,6 +154,77 @@ fn resolves_latest_snapshot_for_worktree_root() {
             assert_eq!(resolved.id, second.id);
             assert_ne!(resolved.id, first.id);
             assert_eq!(resolved.key.git_sha, "def456");
+        })
+    });
+}
+
+#[test]
+fn records_and_loads_query_observations() {
+    with_runtime(|runtime| {
+        runtime.block_on(async {
+            let dir = tempdir().expect("tempdir");
+            let store = SnapshotStore::open_local(&db_path(dir.path()))
+                .await
+                .expect("open local db");
+            let snapshot = store
+                .create_or_get_snapshot(sample_snapshot("/repo/.worktrees/obs"))
+                .await
+                .expect("create snapshot");
+
+            let observation = QueryObservationRecord::new(
+                "obs-1",
+                snapshot.id.clone(),
+                "find-examples",
+                "example_sum",
+                Some("mini_repo::example_sum".to_string()),
+                vec!["src/lib.rs".to_string()],
+                vec!["warning".to_string()],
+                2,
+                RetrievalConfig::default(),
+                ObservabilityConfig {
+                    enabled: true,
+                    verbosity: ObservabilityVerbosity::Detailed,
+                },
+            );
+            let candidates = vec![CandidateObservationRecord::new(
+                "obs-1",
+                "chunk-1",
+                "Symbol",
+                Some("mini_repo::example_sum".to_string()),
+                "src/lib.rs",
+                vec!["exact_symbol".to_string()],
+                vec!["example".to_string()],
+                1,
+                true,
+                false,
+                10.0,
+                0.8,
+                0.0,
+                10.8,
+            )];
+
+            store
+                .record_query_observation(observation.clone(), &candidates)
+                .await
+                .expect("record query observation");
+
+            let loaded = store
+                .load_query_observations(&snapshot.id)
+                .await
+                .expect("load observations");
+            assert_eq!(loaded.len(), 1);
+            assert_eq!(loaded[0].observation_id, "obs-1");
+            assert_eq!(loaded[0].changed_paths, vec!["src/lib.rs"]);
+            assert_eq!(
+                loaded[0].observability.verbosity,
+                ObservabilityVerbosity::Detailed
+            );
+
+            let loaded_candidates = store
+                .load_candidate_observations("obs-1")
+                .await
+                .expect("load candidate observations");
+            assert_eq!(loaded_candidates, candidates);
         })
     });
 }

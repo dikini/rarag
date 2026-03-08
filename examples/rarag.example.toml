@@ -21,6 +21,55 @@ model = "text-embedding-3-small"
 api_key_env = "OPENAI_API_KEY"
 dimensions = 1536
 
+[retrieval.rerank]
+understand_symbol_symbol = 0.6
+implement_adjacent_body_region = 0.4
+bounded_refactor_test_like = 0.6
+bounded_refactor_other = 0.2
+blast_radius_test_like = 0.6
+blast_radius_other = 0.2
+find_examples_example_like = 0.8
+find_examples_other = 0.1
+worktree_diff_understand_symbol = 0.4
+worktree_diff_implement_adjacent = 0.8
+worktree_diff_bounded_refactor = 1.2
+worktree_diff_blast_radius = 1.2
+worktree_diff_find_examples = 0.5
+
+[retrieval.neighborhood]
+exact_symbol = 10.0
+same_file = 4.0
+text_reference_understand_symbol = 3.0
+text_reference_implement_adjacent = 4.5
+text_reference_bounded_refactor = 5.0
+text_reference_bounded_refactor_test_like = 6.0
+text_reference_blast_radius = 5.0
+text_reference_blast_radius_test_like = 6.0
+text_reference_find_examples = 5.5
+text_reference_find_examples_test_like = 6.0
+test_neighbor_find_examples = 3.5
+test_neighbor_bounded_refactor = 3.5
+module_context_understand_symbol = 2.5
+semantic_reference_understand_symbol = 3.8
+semantic_reference_implement_adjacent = 4.8
+semantic_reference_bounded_refactor = 5.8
+semantic_reference_blast_radius = 5.8
+semantic_reference_find_examples = 5.2
+semantic_impl_understand_symbol = 4.4
+semantic_impl_implement_adjacent = 6.8
+semantic_impl_bounded_refactor = 8.6
+semantic_impl_blast_radius = 8.6
+semantic_impl_find_examples = 4.0
+semantic_test_understand_symbol = 3.6
+semantic_test_implement_adjacent = 4.6
+semantic_test_bounded_refactor = 8.2
+semantic_test_blast_radius = 8.2
+semantic_test_find_examples = 8.2
+
+[observability]
+enabled = false
+verbosity = "off"
+
 [cli]
 default_json = false
 

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use rarag_core::chunking::RustChunker;
 use rarag_core::config::AppConfig;
 use rarag_core::daemon::{
-    DaemonRequest, DaemonResponse, IndexResponse, QueryPayload, StatusPayload,
+    DaemonRequest, DaemonResponse, IndexResponse, QueryPayload, ReloadResponse, StatusPayload,
 };
 use rarag_core::embeddings::{
     DeterministicEmbeddingProvider, EmbeddingProvider, OpenAiCompatibleEmbeddings,
@@ -12,9 +12,12 @@ use rarag_core::embeddings::{
 use rarag_core::indexing::{ChunkIndexer, QdrantPointStore, TantivyChunkStore};
 use rarag_core::metadata::SnapshotStore;
 use rarag_core::retrieval::{QueryMode, RepositoryRetriever};
+use rarag_core::config_loader::load_app_config_with_source;
 use rarag_core::unix_socket::{prepare_socket_path, remove_socket_if_present};
 use tokio::net::UnixListener;
 use tokio::sync::Mutex;
+#[cfg(unix)]
+use tokio::signal::unix::{SignalKind, signal};
 
 use crate::config::ServeConfig;
 use crate::transport::{error_response, read_request, write_response};
@@ -38,10 +41,17 @@ pub struct DaemonState {
     tantivy: TantivyChunkStore,
     qdrant: QdrantPointStore,
     provider: DaemonEmbeddingProvider,
+    active_config: AppConfig,
+    config_source: Option<PathBuf>,
+    config_generation: u64,
 }
 
 impl DaemonState {
-    async fn open(config: &AppConfig, serve: &ServeConfig) -> Result<Self, String> {
+    async fn open(
+        config: AppConfig,
+        config_source: Option<PathBuf>,
+        serve: ServeConfig,
+    ) -> Result<Self, String> {
         let metadata_path = local_database_path(&config.turso.database_url)?;
         if let Some(parent) = metadata_path.parent() {
             std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
@@ -76,6 +86,9 @@ impl DaemonState {
             tantivy,
             qdrant,
             provider,
+            active_config: config,
+            config_source,
+            config_generation: 0,
         })
     }
 
@@ -107,8 +120,27 @@ impl DaemonState {
                 payload.query_mode = QueryMode::BlastRadius;
                 self.query(payload).await
             }
+            DaemonRequest::ReloadConfig => match self.reload_config().await {
+                Ok(response) => DaemonResponse::Reloaded(response),
+                Err(err) => error_response(err),
+            },
             DaemonRequest::Shutdown => DaemonResponse::Ack,
         }
+    }
+
+    async fn reload_config(&mut self) -> Result<ReloadResponse, String> {
+        let loaded = load_app_config_with_source(self.config_source.as_deref())?;
+        self.active_config.retrieval = loaded.config.retrieval;
+        self.active_config.observability = loaded.config.observability;
+        self.config_source = loaded.source_path;
+        self.config_generation += 1;
+        Ok(ReloadResponse {
+            generation: self.config_generation,
+            source_path: self
+                .config_source
+                .as_ref()
+                .map(|path| path.display().to_string()),
+        })
     }
 
     async fn index_workspace(
@@ -144,8 +176,14 @@ impl DaemonState {
         };
 
         let request = payload.into_retrieval_request(snapshot_id);
-        let retriever =
-            RepositoryRetriever::new(&self.metadata, &self.tantivy, &self.qdrant, &self.provider);
+        let retriever = RepositoryRetriever::new_with_settings(
+            &self.metadata,
+            &self.tantivy,
+            &self.qdrant,
+            &self.provider,
+            &self.active_config.retrieval,
+            &self.active_config.observability,
+        );
         match retriever.retrieve(request).await {
             Ok(response) => DaemonResponse::Query(response),
             Err(err) => error_response(err),
@@ -172,7 +210,11 @@ impl DaemonState {
     }
 }
 
-pub async fn serve(config: AppConfig, serve: ServeConfig) -> Result<(), String> {
+pub async fn serve(
+    config: AppConfig,
+    config_source: Option<PathBuf>,
+    serve: ServeConfig,
+) -> Result<(), String> {
     let socket_path = serve
         .socket_path
         .clone()
@@ -180,8 +222,50 @@ pub async fn serve(config: AppConfig, serve: ServeConfig) -> Result<(), String> 
     prepare_socket_path(&socket_path)?;
 
     let listener = UnixListener::bind(&socket_path).map_err(|err| err.to_string())?;
-    let state = Arc::new(Mutex::new(DaemonState::open(&config, &serve).await?));
+    let state = Arc::new(Mutex::new(
+        DaemonState::open(config, config_source, serve.clone()).await?,
+    ));
 
+    #[cfg(unix)]
+    let mut sighup = signal(SignalKind::hangup()).map_err(|err| err.to_string())?;
+
+    #[cfg(unix)]
+    loop {
+        tokio::select! {
+            maybe_signal = sighup.recv() => {
+                if maybe_signal.is_some() {
+                    let result = {
+                        let mut state = state.lock().await;
+                        state.reload_config().await
+                    };
+                    if let Err(err) = result {
+                        eprintln!("config reload failed: {err}");
+                    }
+                }
+            }
+            accepted = listener.accept() => {
+                let (mut stream, _) = accepted.map_err(|err| err.to_string())?;
+                let request = match read_request(&mut stream).await {
+                    Ok(request) => request,
+                    Err(err) => {
+                        write_response(&mut stream, &error_response(err)).await?;
+                        continue;
+                    }
+                };
+                let response = {
+                    let mut state = state.lock().await;
+                    state.handle_request(request).await
+                };
+                let shutdown = matches!(response, DaemonResponse::Ack);
+                write_response(&mut stream, &response).await?;
+                if shutdown {
+                    break;
+                }
+            }
+        }
+    }
+
+    #[cfg(not(unix))]
     loop {
         let (mut stream, _) = listener.accept().await.map_err(|err| err.to_string())?;
         let request = match read_request(&mut stream).await {

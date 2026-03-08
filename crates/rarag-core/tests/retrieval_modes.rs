@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use rarag_core::chunking::RustChunker;
+use rarag_core::config::{ObservabilityConfig, ObservabilityVerbosity, RetrievalConfig};
 use rarag_core::embeddings::EmbeddingProvider;
 use rarag_core::indexing::{ChunkIndexer, QdrantPointStore, TantivyChunkStore};
 use rarag_core::metadata::SnapshotStore;
@@ -302,6 +303,95 @@ fn lexical_query_can_hit_docs_and_example_text() {
         assert!(response.items.iter().any(|item| {
             item.chunk.chunk_kind == "Doctest"
                 && item.evidence.iter().any(|entry| entry == "lexical_bm25")
+        }));
+    });
+}
+
+#[test]
+fn observation_capture_does_not_change_ranked_results() {
+    runtime().block_on(async {
+        let (snapshot_id, _dir, metadata, tantivy, qdrant, provider) = build_retriever().await;
+        let baseline = RepositoryRetriever::new(&metadata, &tantivy, &qdrant, &provider)
+            .retrieve(
+                RetrievalRequest::new(snapshot_id.clone(), QueryMode::UnderstandSymbol, "example_sum")
+                    .with_symbol_path("mini_repo::example_sum")
+                    .with_limit(6),
+            )
+            .await
+            .expect("baseline retrieve");
+
+        let observed = RepositoryRetriever::new_with_settings(
+            &metadata,
+            &tantivy,
+            &qdrant,
+            &provider,
+            &RetrievalConfig::default(),
+            &ObservabilityConfig {
+                enabled: true,
+                verbosity: ObservabilityVerbosity::Summary,
+            },
+        )
+        .retrieve(
+            RetrievalRequest::new(snapshot_id, QueryMode::UnderstandSymbol, "example_sum")
+                .with_symbol_path("mini_repo::example_sum")
+                .with_limit(6),
+        )
+        .await
+        .expect("observed retrieve");
+
+        assert_eq!(baseline.items, observed.items);
+        assert_eq!(baseline.warnings, observed.warnings);
+    });
+}
+
+#[test]
+fn detailed_observation_captures_candidate_features() {
+    runtime().block_on(async {
+        let (snapshot_id, _dir, metadata, tantivy, qdrant, provider) = build_retriever().await;
+        let retriever = RepositoryRetriever::new_with_settings(
+            &metadata,
+            &tantivy,
+            &qdrant,
+            &provider,
+            &RetrievalConfig::default(),
+            &ObservabilityConfig {
+                enabled: true,
+                verbosity: ObservabilityVerbosity::Detailed,
+            },
+        );
+        let response = retriever
+            .retrieve(
+                RetrievalRequest::new(
+                    snapshot_id.clone(),
+                    QueryMode::BoundedRefactor,
+                    "rename or refactor example_sum safely",
+                )
+                .with_symbol_path("mini_repo::example_sum")
+                .with_limit(8),
+            )
+            .await
+            .expect("retrieve");
+
+        assert!(!response.items.is_empty());
+
+        let observations = metadata
+            .load_query_observations(&snapshot_id)
+            .await
+            .expect("load observations");
+        let latest = observations.last().expect("observation row");
+        let candidates = metadata
+            .load_candidate_observations(&latest.observation_id)
+            .await
+            .expect("load candidate observations");
+
+        assert!(!candidates.is_empty());
+        assert!(candidates.iter().any(|candidate| candidate.returned));
+        assert!(candidates.iter().all(|candidate| candidate.final_score >= candidate.base_score));
+        assert!(candidates.iter().any(|candidate| {
+            candidate
+                .evidence
+                .iter()
+                .any(|entry| entry == "exact_symbol" || entry == "lexical_bm25")
         }));
     });
 }

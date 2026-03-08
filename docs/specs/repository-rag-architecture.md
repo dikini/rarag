@@ -8,7 +8,7 @@
 > - Use Property-based tests only when a generative framework is actually used.
 > - Run `scripts/doc-lint.sh` before commit.
 
-Updated: 2026-03-07
+Updated: 2026-03-08
 Status: active
 Owner: Codex
 Template-Profile: tdd-strict-v1
@@ -47,6 +47,7 @@ Define the canonical architecture for a Rust-first repository assistance RAG sys
 The system is not a generic question-answering assistant. It is a repository memory and retrieval system for understanding unfamiliar code, adding or modifying features, performing bounded refactors safely, and locating examples, invariants, and blast radius.
 
 Related Task Registry ID: `2026-03-07-shared-config`
+Related Task Registry ID: `2026-03-08-rerank-observability`
 
 ## Scope
 
@@ -58,6 +59,7 @@ Related Task Registry ID: `2026-03-07-shared-config`
 - Local developer use through a CLI and a local MCP server over Unix sockets.
 - Shared TOML configuration for `rarag`, `raragd`, and `rarag-mcp`, with code defaults that remain overridable.
 - Retrieval modes tuned for repository-assistance tasks.
+- Configurable heuristic reranking and opt-in retrieval observability for evaluation and tuning.
 - Test-first development and verification-aware repository assistance.
 
 ### Out of Scope
@@ -95,6 +97,7 @@ The architecture consists of four Rust crates in one workspace:
 
 - A single optional TOML file, `rarag.toml`, is the canonical user-facing configuration surface for `rarag`, `raragd`, and `rarag-mcp`.
 - Shared sections cover runtime paths, storage endpoints, embedding provider settings, indexing behavior, and retrieval behavior.
+- Shared config must also cover retrieval rerank weights and observability controls.
 - Binary-specific sections cover CLI output defaults, daemon socket/service settings, and MCP socket/tool exposure settings.
 - Code defaults remain the first layer. Config values override code defaults. Explicit environment and CLI overrides may apply on top where supported by a binary.
 - Supported config resolution order is:
@@ -112,6 +115,7 @@ The architecture consists of four Rust crates in one workspace:
 ### Storage Contract
 
 - Turso stores snapshot metadata, chunk metadata, graph edges, indexing runs, query audit rows, and provider configuration metadata.
+- Turso may also store retrieval observation rows and candidate-feature rows when observability is enabled.
 - Tantivy stores lexical fields for chunk text, symbol path, symbol name, docs text, extracted signature text, file path, chunk kind, test/example markers, and repository-state hints.
 - Qdrant stores chunk vectors and optional reranking helper payloads keyed by `chunk_id` and `snapshot_id`.
 - All three stores must use the same stable `chunk_id` and `snapshot_id` values.
@@ -164,6 +168,20 @@ Retrieval order:
 4. rerank with diff/worktree locality plus query-mode-specific signals
 5. assemble compact neighborhood
 
+Rerank configuration:
+
+- The heuristic reranker must remain deterministic by default.
+- Rerank and neighborhood weights must be configurable through shared TOML without changing the daemon request surface.
+- Code defaults must preserve the current ranking behavior when no overrides are present.
+
+Observability:
+
+- Retrieval observation is opt-in and disabled by default.
+- Observability levels must support at least `off`, `summary`, and `detailed`.
+- When enabled, the system must emit structured query observation logs suitable for correlation with agent logs.
+- When enabled, the system must also persist enough candidate-feature history to generate offline evaluation sets and compare rerank tuning changes later.
+- Observation capture must not change retrieval outputs or ranking decisions.
+
 ### CLI Contract
 
 The CLI must remain shell-friendly and scriptable.
@@ -177,6 +195,7 @@ Required commands:
 - `rarag examples`
 - `rarag blast-radius`
 - `rarag doctor`
+- `rarag daemon reload`
 
 Required flags:
 
@@ -201,6 +220,7 @@ Required tools:
 - `rag_blast_radius`
 - `rag_index_status`
 - `rag_reindex`
+- `rag_reload_config`
 
 Tool outputs must include enough source references and ranking evidence for agents to cite retrieved context in later workflow steps.
 
@@ -213,6 +233,18 @@ Defaults:
 - cache root: `$XDG_CACHE_HOME/rarag/`
 
 All paths must be overridable by config or CLI flags.
+
+### Admin Reload Contract
+
+- `raragd` must support configuration reload via `SIGHUP`.
+- The daemon must also expose an explicit admin reload request so CLI and MCP callers can trigger the same behavior safely.
+- Reload must be validate-then-swap:
+  - parse candidate config
+  - validate it
+  - initialize any newly required sinks or dependencies
+  - atomically replace active runtime config only after validation succeeds
+- Failed reloads must preserve the last known-good active configuration.
+- In-flight requests must complete using the configuration snapshot they started with; later requests may observe the new configuration.
 
 ### Security Contract
 
@@ -237,6 +269,10 @@ All paths must be overridable by config or CLI flags.
 - Shared config semantics remain consistent across CLI, daemon, and MCP binaries.
 - The MCP transport remains interoperable with standard local MCP clients over Unix sockets.
 - Lexical storage remains rich enough to satisfy symbol, docs/example, and bounded-refactor retrieval use cases without depending entirely on embeddings.
+- Rerank defaults preserve baseline behavior unless explicitly overridden in config.
+- Observability remains off unless explicitly enabled in config.
+- Observation capture remains side-effect free with respect to ranking and retrieval outputs.
+- Config reload never leaves the daemon in a partially applied configuration state.
 
 ## Task Contracts
 

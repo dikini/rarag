@@ -178,6 +178,19 @@ fn cli_dry_run_omits_workflow_phase() {
 }
 
 #[test]
+fn cli_supports_reload_dry_run() {
+    let stdout = run_cli(&[
+        "daemon",
+        "reload",
+        "--socket",
+        "/tmp/rarag-test.sock",
+        "--dry-run-request",
+    ]);
+
+    assert!(stdout.contains("\"kind\": \"reload-config\""));
+}
+
+#[test]
 fn mcp_tool_names_match_contract() {
     let output = Command::new(ensure_binary("rarag-mcp"))
         .arg("--list-tools")
@@ -192,6 +205,7 @@ fn mcp_tool_names_match_contract() {
     assert!(stdout.contains("rag_examples"));
     assert!(stdout.contains("rag_blast_radius"));
     assert!(stdout.contains("rag_index_status"));
+    assert!(stdout.contains("rag_reload_config"));
 }
 
 #[test]
@@ -514,6 +528,73 @@ fn mcp_calls_omit_workflow_phase() {
             .as_array()
             .is_some_and(|items| !items.is_empty())
     );
+
+    let _ = daemon.kill();
+    let _ = daemon.wait();
+    let _ = mcp.kill();
+    let _ = mcp.wait();
+}
+
+#[test]
+fn cli_and_mcp_support_reload_config() {
+    let dir = tempdir().expect("tempdir");
+    let daemon_socket = dir.path().join("raragd.sock");
+    let mcp_socket = dir.path().join("rarag-mcp.sock");
+    let config_path = dir.path().join("rarag.toml");
+    std::fs::write(
+        &config_path,
+        r#"
+[observability]
+enabled = false
+verbosity = "off"
+"#,
+    )
+    .expect("write config");
+
+    let mut daemon = spawn_server(
+        "raragd",
+        &[
+            "serve",
+            "--config",
+            config_path.to_str().expect("config path"),
+            "--socket",
+            daemon_socket.to_str().expect("daemon socket"),
+            "--test-deterministic-embeddings",
+            "--test-memory-vector-store",
+        ],
+        &daemon_socket,
+    );
+
+    let cli_stdout = run_cli(&[
+        "daemon",
+        "reload",
+        "--socket",
+        daemon_socket.to_str().expect("daemon socket"),
+        "--json",
+    ]);
+    let cli_json: Value = serde_json::from_str(&cli_stdout).expect("cli json");
+    assert_eq!(cli_json["kind"].as_str(), Some("reloaded"));
+
+    let mut mcp = spawn_server(
+        "rarag-mcp",
+        &[
+            "serve",
+            "--socket",
+            mcp_socket.to_str().expect("mcp socket"),
+            "--daemon-socket",
+            daemon_socket.to_str().expect("daemon socket"),
+        ],
+        &mcp_socket,
+    );
+    let mcp_response = mcp_request(
+        &mcp_socket,
+        serde_json::json!({
+            "kind": "call_tool",
+            "name": "rag_reload_config",
+            "arguments": {}
+        }),
+    );
+    assert_eq!(mcp_response["result"]["kind"].as_str(), Some("reloaded"));
 
     let _ = daemon.kill();
     let _ = daemon.wait();

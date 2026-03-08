@@ -1,17 +1,24 @@
 use std::env;
+use std::str::FromStr;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
+use std::fmt;
+
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AppConfig {
     pub runtime: RuntimePaths,
     pub turso: TursoConfig,
     pub tantivy: TantivyConfig,
     pub qdrant: QdrantConfig,
     pub embeddings: EmbeddingProviderConfig,
+    #[serde(default)]
+    pub retrieval: RetrievalConfig,
+    #[serde(default)]
+    pub observability: ObservabilityConfig,
     #[serde(default)]
     pub cli: Option<CliConfig>,
     #[serde(default)]
@@ -50,6 +57,8 @@ impl Default for AppConfig {
                 api_key_env: "OPENAI_API_KEY".into(),
                 dimensions: 1_536,
             },
+            retrieval: RetrievalConfig::default(),
+            observability: ObservabilityConfig::default(),
             cli: None,
             daemon: Some(DaemonConfig {
                 socket_path: format!("{runtime_root}/{}", crate::workspace::default_socket_name()),
@@ -60,6 +69,177 @@ impl Default for AppConfig {
                     crate::workspace::default_mcp_socket_name()
                 ),
             }),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RetrievalConfig {
+    #[serde(default)]
+    pub rerank: RerankWeightsConfig,
+    #[serde(default)]
+    pub neighborhood: NeighborhoodWeightsConfig,
+}
+
+impl Default for RetrievalConfig {
+    fn default() -> Self {
+        Self {
+            rerank: RerankWeightsConfig::default(),
+            neighborhood: NeighborhoodWeightsConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RerankWeightsConfig {
+    pub understand_symbol_symbol: f32,
+    pub implement_adjacent_body_region: f32,
+    pub bounded_refactor_test_like: f32,
+    pub bounded_refactor_other: f32,
+    pub blast_radius_test_like: f32,
+    pub blast_radius_other: f32,
+    pub find_examples_example_like: f32,
+    pub find_examples_other: f32,
+    pub worktree_diff_understand_symbol: f32,
+    pub worktree_diff_implement_adjacent: f32,
+    pub worktree_diff_bounded_refactor: f32,
+    pub worktree_diff_blast_radius: f32,
+    pub worktree_diff_find_examples: f32,
+}
+
+impl Default for RerankWeightsConfig {
+    fn default() -> Self {
+        Self {
+            understand_symbol_symbol: 0.6,
+            implement_adjacent_body_region: 0.4,
+            bounded_refactor_test_like: 0.6,
+            bounded_refactor_other: 0.2,
+            blast_radius_test_like: 0.6,
+            blast_radius_other: 0.2,
+            find_examples_example_like: 0.8,
+            find_examples_other: 0.1,
+            worktree_diff_understand_symbol: 0.4,
+            worktree_diff_implement_adjacent: 0.8,
+            worktree_diff_bounded_refactor: 1.2,
+            worktree_diff_blast_radius: 1.2,
+            worktree_diff_find_examples: 0.5,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct NeighborhoodWeightsConfig {
+    pub exact_symbol: f32,
+    pub same_file: f32,
+    pub text_reference_understand_symbol: f32,
+    pub text_reference_implement_adjacent: f32,
+    pub text_reference_bounded_refactor: f32,
+    pub text_reference_bounded_refactor_test_like: f32,
+    pub text_reference_blast_radius: f32,
+    pub text_reference_blast_radius_test_like: f32,
+    pub text_reference_find_examples: f32,
+    pub text_reference_find_examples_test_like: f32,
+    pub test_neighbor_find_examples: f32,
+    pub test_neighbor_bounded_refactor: f32,
+    pub module_context_understand_symbol: f32,
+    pub semantic_reference_understand_symbol: f32,
+    pub semantic_reference_implement_adjacent: f32,
+    pub semantic_reference_bounded_refactor: f32,
+    pub semantic_reference_blast_radius: f32,
+    pub semantic_reference_find_examples: f32,
+    pub semantic_impl_understand_symbol: f32,
+    pub semantic_impl_implement_adjacent: f32,
+    pub semantic_impl_bounded_refactor: f32,
+    pub semantic_impl_blast_radius: f32,
+    pub semantic_impl_find_examples: f32,
+    pub semantic_test_understand_symbol: f32,
+    pub semantic_test_implement_adjacent: f32,
+    pub semantic_test_bounded_refactor: f32,
+    pub semantic_test_blast_radius: f32,
+    pub semantic_test_find_examples: f32,
+}
+
+impl Default for NeighborhoodWeightsConfig {
+    fn default() -> Self {
+        Self {
+            exact_symbol: 10.0,
+            same_file: 4.0,
+            text_reference_understand_symbol: 3.0,
+            text_reference_implement_adjacent: 4.5,
+            text_reference_bounded_refactor: 5.0,
+            text_reference_bounded_refactor_test_like: 6.0,
+            text_reference_blast_radius: 5.0,
+            text_reference_blast_radius_test_like: 6.0,
+            text_reference_find_examples: 5.5,
+            text_reference_find_examples_test_like: 6.0,
+            test_neighbor_find_examples: 3.5,
+            test_neighbor_bounded_refactor: 3.5,
+            module_context_understand_symbol: 2.5,
+            semantic_reference_understand_symbol: 3.8,
+            semantic_reference_implement_adjacent: 4.8,
+            semantic_reference_bounded_refactor: 5.8,
+            semantic_reference_blast_radius: 5.8,
+            semantic_reference_find_examples: 5.2,
+            semantic_impl_understand_symbol: 4.4,
+            semantic_impl_implement_adjacent: 6.8,
+            semantic_impl_bounded_refactor: 8.6,
+            semantic_impl_blast_radius: 8.6,
+            semantic_impl_find_examples: 4.0,
+            semantic_test_understand_symbol: 3.6,
+            semantic_test_implement_adjacent: 4.6,
+            semantic_test_bounded_refactor: 8.2,
+            semantic_test_blast_radius: 8.2,
+            semantic_test_find_examples: 8.2,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ObservabilityConfig {
+    pub enabled: bool,
+    pub verbosity: ObservabilityVerbosity,
+}
+
+impl Default for ObservabilityConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            verbosity: ObservabilityVerbosity::Off,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ObservabilityVerbosity {
+    Off,
+    Summary,
+    Detailed,
+}
+
+impl fmt::Display for ObservabilityVerbosity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Off => f.write_str("off"),
+            Self::Summary => f.write_str("summary"),
+            Self::Detailed => f.write_str("detailed"),
+        }
+    }
+}
+
+impl FromStr for ObservabilityVerbosity {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "off" => Ok(Self::Off),
+            "summary" => Ok(Self::Summary),
+            "detailed" => Ok(Self::Detailed),
+            other => Err(format!("unsupported observability verbosity {other}")),
         }
     }
 }
@@ -227,7 +407,10 @@ impl EmbeddingProviderConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::{EmbeddingProviderConfig, RuntimePaths};
+    use super::{
+        EmbeddingProviderConfig, NeighborhoodWeightsConfig, ObservabilityConfig,
+        ObservabilityVerbosity, RerankWeightsConfig, RetrievalConfig, RuntimePaths,
+    };
 
     #[test]
     fn runtime_paths_new_keeps_input_order() {
@@ -255,5 +438,23 @@ mod tests {
         assert!(err.contains("model"));
         assert!(err.contains("api_key_env"));
         assert!(err.contains("dimensions"));
+    }
+
+    #[test]
+    fn defaults_keep_observability_off() {
+        let config = ObservabilityConfig::default();
+
+        assert!(!config.enabled);
+        assert_eq!(config.verbosity, ObservabilityVerbosity::Off);
+    }
+
+    #[test]
+    fn retrieval_defaults_preserve_existing_scores() {
+        let config = RetrievalConfig::default();
+
+        assert_eq!(config.rerank, RerankWeightsConfig::default());
+        assert_eq!(config.neighborhood, NeighborhoodWeightsConfig::default());
+        assert_eq!(config.rerank.find_examples_example_like, 0.8);
+        assert_eq!(config.neighborhood.same_file, 4.0);
     }
 }

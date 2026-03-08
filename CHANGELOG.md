@@ -9,6 +9,8 @@ The format is based on Common Changelog:
 
 ### Added
 
+- Added configurable heuristic rerank and neighborhood weights in shared TOML config, plus opt-in retrieval observation persistence for offline eval generation.
+- Added daemon config reload controls through `SIGHUP`, `rarag daemon reload`, and MCP tool `rag_reload_config`.
 - Added a repository RAG architecture spec, design note, and phased implementation plan for a Rust-first, worktree-aware hybrid retrieval system using Turso, Tantivy, Qdrant, `ra_ap_syntax`, and `rust-analyzer`.
 - Added the Phase 1 Rust workspace skeleton with `rarag-core`, `raragd`, `rarag`, and `rarag-mcp`, plus bootstrap tests and toolchain configuration.
 - Added initial application config and snapshot identity types with validation and JSON roundtrip coverage for worktree-aware indexing.
@@ -41,8 +43,11 @@ The format is based on Common Changelog:
 - Changed structural chunking and metadata to carry docs text, signature text, parent relationships, retrieval markers, and repository-state hints across `src/`, `examples/`, integration tests, and extracted Rust doctests.
 - Changed the runtime query contract to drop workflow-phase inputs from `rarag-core`, `rarag`, `raragd`, and `rarag-mcp`, and renamed lexical/storage hint fields from `workflow_hints` to `repository_state_hints`.
 - Changed project policy to treat backward compatibility as out of scope until the first release unless a spec or plan explicitly requires it.
+- Changed retrieval scoring to read config-backed rerank and neighborhood weights while preserving the previous defaults when no overrides are set.
 
 ### Fixed
+
+- Fixed retrieval observability so it records ranked candidate features for eval generation without changing the returned top-N results, and so structured query logs still emit even if observation persistence fails.
 
 - Excluded local `target/` build artifacts from `scripts/init-from-backbone.sh` copies so starter repository initialization stays deterministic and does not pull developer build output into generated repos.
 - Fixed worktree-root snapshot resolution to select the latest snapshot instead of failing after repeated indexing, switched the operational vector store to endpoint-backed Qdrant with an explicit test-only in-memory fallback, and hardened Unix-socket cleanup to refuse non-socket paths.

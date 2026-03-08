@@ -68,6 +68,7 @@ fn print_help() {
     println!(
         "  rarag status [--socket <path>] [--snapshot-id <id> | --worktree-root <path>] [--json]"
     );
+    println!("  rarag daemon reload [--socket <path>] [--json] [--dry-run-request]");
     println!(
         "  rarag index build --workspace-root <path> --repo-root <path> --worktree <path> --git-sha <sha> [--cargo-target <triple>] [--feature <csv>] [--cfg-profile <profile>] [--max-body-bytes <n>] [--socket <path>] [--json]"
     );
@@ -109,6 +110,13 @@ fn print_human(response: &rarag_core::daemon::DaemonResponse) {
                     top.chunk.symbol_path.as_deref().unwrap_or_default()
                 );
             }
+        }
+        rarag_core::daemon::DaemonResponse::Reloaded(payload) => {
+            println!("generation={}", payload.generation);
+            println!(
+                "source_path={}",
+                payload.source_path.as_deref().unwrap_or_default()
+            );
         }
         rarag_core::daemon::DaemonResponse::Ack => println!("ack"),
         rarag_core::daemon::DaemonResponse::Error(err) => {

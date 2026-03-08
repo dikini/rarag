@@ -1,6 +1,7 @@
 use crate::chunking::Chunk;
 use crate::metadata::{
-    ChunkRecord, EdgeRecord, IndexingRunRecord, QueryAuditRecord, SnapshotRecord,
+    CandidateObservationRecord, ChunkRecord, EdgeRecord, IndexingRunRecord, QueryAuditRecord,
+    QueryObservationRecord, SnapshotRecord,
 };
 use crate::semantic::SemanticEdge;
 use crate::snapshot::SnapshotKey;
@@ -198,6 +199,140 @@ impl SnapshotStore {
         Ok(())
     }
 
+    pub async fn record_query_observation(
+        &self,
+        record: QueryObservationRecord,
+        candidates: &[CandidateObservationRecord],
+    ) -> Result<(), String> {
+        let retrieval_json =
+            serde_json::to_string(&record.retrieval).map_err(|err| err.to_string())?;
+        self.connection
+            .execute(
+                "INSERT INTO query_observations (observation_id, snapshot_id, query_mode, query_text, symbol_path, changed_paths, warnings, result_count, retrieval_config_json, observability_enabled, observability_verbosity) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                (
+                    record.observation_id.as_str(),
+                    record.snapshot_id.as_str(),
+                    record.query_mode.as_str(),
+                    record.query_text.as_str(),
+                    record.symbol_path.as_deref(),
+                    join_csv(&record.changed_paths),
+                    join_csv(&record.warnings),
+                    i64::try_from(record.result_count).map_err(|err| err.to_string())?,
+                    retrieval_json.as_str(),
+                    if record.observability.enabled { 1_i64 } else { 0_i64 },
+                    record.observability.verbosity.to_string(),
+                ),
+            )
+            .await
+            .map_err(|err| err.to_string())?;
+
+        for candidate in candidates {
+            self.connection
+                .execute(
+                    "INSERT INTO candidate_observations (observation_id, rank, chunk_id, chunk_kind, symbol_path, file_path, evidence, retrieval_markers, returned, matched_worktree, base_score, query_mode_bias, worktree_diff_bias, final_score) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                    (
+                        candidate.observation_id.as_str(),
+                        i64::from(candidate.rank),
+                        candidate.chunk_id.as_str(),
+                        candidate.chunk_kind.as_str(),
+                        candidate.symbol_path.as_deref(),
+                        candidate.file_path.as_str(),
+                        join_csv(&candidate.evidence),
+                        join_csv(&candidate.retrieval_markers),
+                        if candidate.returned { 1_i64 } else { 0_i64 },
+                        if candidate.matched_worktree { 1_i64 } else { 0_i64 },
+                        f64::from(candidate.base_score),
+                        f64::from(candidate.query_mode_bias),
+                        f64::from(candidate.worktree_diff_bias),
+                        f64::from(candidate.final_score),
+                    ),
+                )
+                .await
+                .map_err(|err| err.to_string())?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn load_query_observations(
+        &self,
+        snapshot_id: &str,
+    ) -> Result<Vec<QueryObservationRecord>, String> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT observation_id, snapshot_id, query_mode, query_text, symbol_path, changed_paths, warnings, result_count, retrieval_config_json, observability_enabled, observability_verbosity FROM query_observations WHERE snapshot_id = ?1 ORDER BY recorded_at, observation_id",
+                [snapshot_id],
+            )
+            .await
+            .map_err(|err| err.to_string())?;
+
+        let mut observations = Vec::new();
+        while let Some(row) = rows.next().await.map_err(|err| err.to_string())? {
+            let retrieval_json = text_at(&row, 8)?;
+            let retrieval =
+                serde_json::from_str(&retrieval_json).map_err(|err| err.to_string())?;
+            let enabled: i64 = row.get(9).map_err(|err| err.to_string())?;
+            observations.push(QueryObservationRecord {
+                observation_id: text_at(&row, 0)?,
+                snapshot_id: text_at(&row, 1)?,
+                query_mode: text_at(&row, 2)?,
+                query_text: text_at(&row, 3)?,
+                symbol_path: optional_text_at(&row, 4)?,
+                changed_paths: split_csv(&text_at(&row, 5)?),
+                warnings: split_csv(&text_at(&row, 6)?),
+                result_count: u64_at(&row, 7)?,
+                retrieval,
+                observability: crate::config::ObservabilityConfig {
+                    enabled: enabled != 0,
+                    verbosity: text_at(&row, 10)?
+                        .parse()
+                        .map_err(|err: String| err)?,
+                },
+            });
+        }
+
+        Ok(observations)
+    }
+
+    pub async fn load_candidate_observations(
+        &self,
+        observation_id: &str,
+    ) -> Result<Vec<CandidateObservationRecord>, String> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT observation_id, chunk_id, chunk_kind, symbol_path, file_path, evidence, retrieval_markers, rank, returned, matched_worktree, base_score, query_mode_bias, worktree_diff_bias, final_score FROM candidate_observations WHERE observation_id = ?1 ORDER BY rank, chunk_id",
+                [observation_id],
+            )
+            .await
+            .map_err(|err| err.to_string())?;
+
+        let mut candidates = Vec::new();
+        while let Some(row) = rows.next().await.map_err(|err| err.to_string())? {
+            let returned: i64 = row.get(8).map_err(|err| err.to_string())?;
+            let matched_worktree: i64 = row.get(9).map_err(|err| err.to_string())?;
+            candidates.push(CandidateObservationRecord {
+                observation_id: text_at(&row, 0)?,
+                chunk_id: text_at(&row, 1)?,
+                chunk_kind: text_at(&row, 2)?,
+                symbol_path: optional_text_at(&row, 3)?,
+                file_path: text_at(&row, 4)?,
+                evidence: split_csv(&text_at(&row, 5)?),
+                retrieval_markers: split_csv(&text_at(&row, 6)?),
+                rank: u32_at(&row, 7)?,
+                returned: returned != 0,
+                matched_worktree: matched_worktree != 0,
+                base_score: f32_at(&row, 10)?,
+                query_mode_bias: f32_at(&row, 11)?,
+                worktree_diff_bias: f32_at(&row, 12)?,
+                final_score: f32_at(&row, 13)?,
+            });
+        }
+
+        Ok(candidates)
+    }
+
     pub async fn replace_chunks(&self, snapshot_id: &str, chunks: &[Chunk]) -> Result<(), String> {
         self.connection
             .execute("DELETE FROM chunks WHERE snapshot_id = ?1", [snapshot_id])
@@ -339,6 +474,11 @@ async fn first_optional_u64(rows: &mut Rows) -> Result<Option<u64>, String> {
     }
 }
 
+fn u64_at(row: &turso::Row, index: usize) -> Result<u64, String> {
+    let value: i64 = row.get(index).map_err(|err| err.to_string())?;
+    u64::try_from(value).map_err(|err| err.to_string())
+}
+
 async fn first_optional_text(rows: &mut Rows) -> Result<Option<String>, String> {
     match rows.next().await.map_err(|err| err.to_string())? {
         Some(row) => Ok(Some(text_at(&row, 0)?)),
@@ -357,6 +497,11 @@ fn optional_text_at(row: &turso::Row, index: usize) -> Result<Option<String>, St
 fn u32_at(row: &turso::Row, index: usize) -> Result<u32, String> {
     let value: i64 = row.get(index).map_err(|err| err.to_string())?;
     u32::try_from(value).map_err(|err| err.to_string())
+}
+
+fn f32_at(row: &turso::Row, index: usize) -> Result<f32, String> {
+    let value: f64 = row.get(index).map_err(|err| err.to_string())?;
+    Ok(value as f32)
 }
 
 fn split_feature_set(feature_set: &str) -> Vec<&str> {
