@@ -1,7 +1,7 @@
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::{Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -113,6 +113,83 @@ fn raw_json_response(stream: &mut UnixStream) -> Result<Value, String> {
         .read_to_end(&mut response)
         .map_err(|err| err.to_string())?;
     serde_json::from_slice(&response).map_err(|err| err.to_string())
+}
+
+struct StdioMcpClient {
+    child: Child,
+    stdin: ChildStdin,
+    stdout: BufReader<ChildStdout>,
+}
+
+impl StdioMcpClient {
+    fn spawn(args: &[&str], runtime_root: &Path) -> Self {
+        let mut child = Command::new(ensure_binary("rarag-mcp"))
+            .args(args)
+            .env("XDG_RUNTIME_DIR", runtime_root)
+            .env("XDG_STATE_HOME", runtime_root)
+            .env("XDG_CACHE_HOME", runtime_root)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("spawn stdio mcp");
+        let stdin = child.stdin.take().expect("mcp stdin");
+        let stdout = child.stdout.take().expect("mcp stdout");
+        Self {
+            child,
+            stdin,
+            stdout: BufReader::new(stdout),
+        }
+    }
+
+    fn request(&mut self, value: &Value) -> Value {
+        let body = serde_json::to_vec(value).expect("serialize request");
+        self.stdin
+            .write_all(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes())
+            .expect("write headers");
+        self.stdin.write_all(&body).expect("write body");
+        self.stdin.flush().expect("flush stdin");
+        read_stdio_frame(&mut self.stdout).expect("read stdio response")
+    }
+}
+
+impl Drop for StdioMcpClient {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+fn read_stdio_frame(reader: &mut impl BufRead) -> Result<Value, String> {
+    let mut content_length: Option<usize> = None;
+    let mut line = String::new();
+    loop {
+        line.clear();
+        let read = reader.read_line(&mut line).map_err(|err| err.to_string())?;
+        if read == 0 {
+            return Err("unexpected EOF while reading stdio frame headers".to_string());
+        }
+        if line == "\n" || line == "\r\n" {
+            break;
+        }
+        let header = line.trim_end_matches(['\r', '\n']);
+        if let Some((name, value)) = header.split_once(':')
+            && name.eq_ignore_ascii_case("Content-Length")
+        {
+            content_length = Some(
+                value
+                    .trim()
+                    .parse::<usize>()
+                    .map_err(|err| format!("invalid content length: {err}"))?,
+            );
+        }
+    }
+    let content_length = content_length.ok_or_else(|| "missing content length".to_string())?;
+    let mut body = vec![0_u8; content_length];
+    reader
+        .read_exact(&mut body)
+        .map_err(|err| err.to_string())?;
+    serde_json::from_slice(&body).map_err(|err| err.to_string())
 }
 
 #[test]
@@ -233,6 +310,108 @@ fn standard_client_can_initialize_and_call_rag_tools() {
     let _ = daemon.wait();
     let _ = mcp.kill();
     let _ = mcp.wait();
+}
+
+#[test]
+fn stdio_client_can_initialize_and_call_rag_tools() {
+    let dir = tempdir().expect("tempdir");
+    let daemon_socket = dir.path().join("raragd.sock");
+    let snapshot_worktree = "/repo/.worktrees/mcp-stdio-protocol";
+
+    let initialize = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-03-26",
+            "capabilities": {},
+            "clientInfo": { "name": "stdio-test", "version": "0.1.0" }
+        }
+    });
+
+    let mut daemon = spawn_server(
+        "raragd",
+        &[
+            "serve",
+            "--socket",
+            daemon_socket.to_str().expect("daemon socket"),
+            "--test-deterministic-embeddings",
+            "--test-memory-vector-store",
+        ],
+        &daemon_socket,
+        json!({
+            "kind": "status",
+            "snapshot_id": null,
+            "worktree_root": "/tmp/probe-worktree"
+        }),
+    );
+
+    let snapshot = SnapshotKey::new(
+        "/repo",
+        snapshot_worktree,
+        "abc123",
+        "x86_64-unknown-linux-gnu",
+        ["default"],
+        "dev",
+    );
+    let index_response = daemon_request(
+        &daemon_socket,
+        &DaemonRequest::IndexWorkspace {
+            snapshot,
+            workspace_root: fixture_root().display().to_string(),
+            max_body_bytes: 80,
+        },
+    )
+    .expect("index workspace");
+    assert_eq!(index_response["kind"], "indexed");
+
+    let mut mcp = StdioMcpClient::spawn(
+        &[
+            "serve-stdio",
+            "--daemon-socket",
+            daemon_socket.to_str().expect("daemon socket"),
+        ],
+        dir.path(),
+    );
+
+    let init_response = mcp.request(&initialize);
+    assert_eq!(init_response["jsonrpc"], "2.0");
+    assert_eq!(init_response["id"], 1);
+
+    let tools_response = mcp.request(&json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/list",
+        "params": {}
+    }));
+    let tool_names: Vec<_> = tools_response["result"]["tools"]
+        .as_array()
+        .expect("tool array")
+        .iter()
+        .filter_map(|tool| tool.get("name").and_then(Value::as_str))
+        .collect();
+    assert!(tool_names.contains(&"rag_symbol_context"));
+
+    let call_response = mcp.request(&json!({
+        "jsonrpc": "2.0",
+        "id": 3,
+        "method": "tools/call",
+        "params": {
+            "name": "rag_symbol_context",
+            "arguments": {
+                "worktree_root": snapshot_worktree,
+                "text": "example_sum"
+            }
+        }
+    }));
+    assert!(
+        call_response["result"]["structuredContent"]["items"]
+            .as_array()
+            .is_some_and(|items| !items.is_empty())
+    );
+
+    let _ = daemon.kill();
+    let _ = daemon.wait();
 }
 
 #[test]

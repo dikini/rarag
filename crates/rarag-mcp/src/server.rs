@@ -1,4 +1,4 @@
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -24,6 +24,20 @@ pub fn serve(socket_path: &Path, daemon_socket: &Path) -> Result<(), String> {
             Err(err) => json!({ "error": err }),
         };
         write_response_value(&mut stream, &response)?;
+    }
+
+    Ok(())
+}
+
+pub fn serve_stdio(daemon_socket: &Path) -> Result<(), String> {
+    let stdin = std::io::stdin();
+    let stdout = std::io::stdout();
+    let mut reader = BufReader::new(stdin.lock());
+    let mut writer = stdout.lock();
+
+    while let Some(request) = read_stdio_request_value(&mut reader)? {
+        let response = handle_request_value(request, daemon_socket);
+        write_stdio_response_value(&mut writer, &response)?;
     }
 
     Ok(())
@@ -316,6 +330,60 @@ fn read_request_value_with_limits(
 fn write_response_value(stream: &mut UnixStream, response: &Value) -> Result<(), String> {
     let body = serde_json::to_vec(response).map_err(|err| err.to_string())?;
     stream.write_all(&body).map_err(|err| err.to_string())
+}
+
+fn read_stdio_request_value<R: BufRead>(reader: &mut R) -> Result<Option<Value>, String> {
+    let mut content_length: Option<usize> = None;
+    let mut line = String::new();
+
+    loop {
+        line.clear();
+        let read = reader.read_line(&mut line).map_err(|err| err.to_string())?;
+        if read == 0 {
+            if content_length.is_none() {
+                return Ok(None);
+            }
+            return Err("unexpected EOF while reading MCP headers".to_string());
+        }
+
+        if line == "\n" || line == "\r\n" {
+            break;
+        }
+
+        let header = line.trim_end_matches(['\r', '\n']);
+        if let Some((name, value)) = header.split_once(':')
+            && name.eq_ignore_ascii_case("Content-Length")
+        {
+            let parsed = value
+                .trim()
+                .parse::<usize>()
+                .map_err(|err| format!("invalid Content-Length header: {err}"))?;
+            content_length = Some(parsed);
+        }
+    }
+
+    let content_length =
+        content_length.ok_or_else(|| "missing Content-Length header in MCP stdio request".to_string())?;
+    if content_length > LOCAL_IPC_MAX_MESSAGE_BYTES {
+        return Err(format!(
+            "mcp request too large: {content_length} bytes exceeds limit {LOCAL_IPC_MAX_MESSAGE_BYTES}"
+        ));
+    }
+
+    let mut body = vec![0_u8; content_length];
+    reader
+        .read_exact(&mut body)
+        .map_err(|err| err.to_string())?;
+    serde_json::from_slice(&body).map(Some).map_err(|err| err.to_string())
+}
+
+fn write_stdio_response_value<W: Write>(writer: &mut W, response: &Value) -> Result<(), String> {
+    let body = serde_json::to_vec(response).map_err(|err| err.to_string())?;
+    writer
+        .write_all(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes())
+        .map_err(|err| err.to_string())?;
+    writer.write_all(&body).map_err(|err| err.to_string())?;
+    writer.flush().map_err(|err| err.to_string())
 }
 
 pub fn daemon_socket_from_args(args: &[String], default_socket: &str) -> PathBuf {

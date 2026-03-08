@@ -9,6 +9,7 @@ The format is based on Common Changelog:
 
 ### Added
 
+- Added `rarag-mcp serve-stdio` with MCP `Content-Length` stdio framing so harnesses like Codex can run `rarag-mcp` as a stdio MCP server while still routing tool calls through the daemon socket.
 - Added repository-level `nextest` configuration to cap concurrent test execution at 4 workers to reduce memory pressure during test runs.
 - Added a `rarag service` porcelain for user-systemd operations with `install`, `start`, `stop`, `restart`, and daemon-HUP `reload`, including managed-unit safeguards and dry-run support.
 - Added `INSTALL.md` as the canonical user install guide with Debian/Ubuntu-first setup, runtime dependency notes, and command discovery guidance.

@@ -5,14 +5,14 @@
 
 ## Model
 
-Codex should connect to local `rarag-mcp` as an MCP server process.
+Codex should connect to local `rarag-mcp` as a stdio MCP server process.
 
 ## Minimal Example
 
 Use a local MCP server entry that launches:
 
 ```bash
-rarag-mcp serve --config ~/.config/rarag/rarag.toml
+rarag-mcp serve-stdio --config ~/.config/rarag/rarag.toml
 ```
 
 ## Suggested Registration Shape
@@ -23,7 +23,7 @@ Use your Codex MCP configuration file and register a server entry equivalent to:
 {
   "name": "rarag",
   "command": "rarag-mcp",
-  "args": ["serve", "--config", "/home/<user>/.config/rarag/rarag.toml"]
+  "args": ["serve-stdio", "--config", "/home/<user>/.config/rarag/rarag.toml"]
 }
 ```
 

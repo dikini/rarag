@@ -42,6 +42,15 @@ fn main() {
         return;
     }
 
+    if args.get(1).is_some_and(|arg| arg == "serve-stdio") {
+        let daemon_socket = server::daemon_socket_from_args(&args, config.daemon_socket_path());
+        if let Err(err) = server::serve_stdio(&daemon_socket) {
+            eprintln!("{err}");
+            std::process::exit(1);
+        }
+        return;
+    }
+
     print_help();
     std::process::exit(2);
 }
@@ -51,4 +60,5 @@ fn print_help() {
     println!("Usage:");
     println!("  rarag-mcp [--help] [--config <path>] [--print-config] [--list-tools]");
     println!("  rarag-mcp serve [--socket <path>] [--daemon-socket <path>] [--config <path>]");
+    println!("  rarag-mcp serve-stdio [--daemon-socket <path>] [--config <path>]");
 }
