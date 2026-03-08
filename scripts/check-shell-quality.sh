@@ -78,9 +78,17 @@ collect_files() {
   } | sed '/^$/d' | sort -u
 }
 
+filter_shell_paths() {
+  if command -v rg >/dev/null 2>&1; then
+    rg '^(\.githooks/|.*\.sh$)'
+  else
+    grep -E '^(\.githooks/|.*\.sh$)'
+  fi
+}
+
 mapfile -t shell_files < <(
   collect_files |
-    rg '^(\.githooks/|.*\.sh$)' |
+    filter_shell_paths |
     while IFS= read -r file; do
       if [[ -f "$file" ]]; then
         printf '%s\n' "$file"

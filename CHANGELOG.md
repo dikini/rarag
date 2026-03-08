@@ -38,6 +38,7 @@ The format is based on Common Changelog:
 ### Fixed
 
 - Fixed the `policy-checks` GitHub Actions workflow to invoke the official `rhysd/actionlint` installer script with the correct positional arguments (`latest <dir>`) in a writable runner-local bin directory exported to `PATH`.
+- Fixed policy verification portability by installing `ripgrep` in the GitHub Actions runner and adding `grep` fallbacks in shell-quality and task-registry policy scripts when `rg` is unavailable.
 - Fixed `rarag service install` unit generation to resolve `raragd` and `rarag-mcp` executable paths from the installed CLI location (with `$PATH` fallback) and to use the active resolved config path instead of hardcoded `~/.cargo/bin` and `~/.config/rarag/rarag.toml` assumptions.
 - Fixed local Unix-socket hardening so daemon and MCP request reads are size-bounded and time-limited, and so socket startup no longer tightens permissions on pre-existing parent directories.
 - Fixed daemon framed-response decoding so valid query payloads larger than the inbound request ceiling still round-trip through the CLI and MCP daemon clients.
