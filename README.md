@@ -1,6 +1,6 @@
 # rarag
 
-Repository assistance RAG for local Rust codebases, built for agent workflows that need symbol-centered context, examples, invariants, and bounded blast-radius retrieval.
+Repository-assistance RAG for local Rust codebases. `rarag` provides a daemon, CLI, and MCP server for symbol-centered context retrieval, examples, and bounded blast-radius queries.
 
 ## Status
 
@@ -8,33 +8,8 @@ Repository assistance RAG for local Rust codebases, built for agent workflows th
 
 Stability note:
 
-- Behavior, APIs, and persisted formats may change until this project is stable.
-- Before the first release, backward compatibility is not preserved unless a spec or plan explicitly says otherwise.
-
-## Repository Layout
-
-- `crates/rarag-core`: shared domain logic for config, snapshots, chunking, metadata, indexing, retrieval, and reranking
-- `crates/raragd`: local Unix-socket daemon that owns the retrieval runtime and index access
-- `crates/rarag`: CLI for indexing, querying, symbol lookup, examples, blast radius, and diagnostics
-- `crates/rarag-mcp`: local MCP-compatible Unix-socket server for agent clients
-- `docs/specs/`: canonical architecture and behavior specs
-- `docs/plans/`: implementation and alignment plans
-- `docs/ops/`: runtime and operator documentation such as Qdrant setup
-- `examples/`: checked-in non-secret configuration examples
-- `scripts/`: bootstrap, verification, policy, and workflow checks
-
-## Prerequisites
-
-- `git`
-- Rust toolchain with `edition = 2024`
-- `rust-version >= 1.93`
-- `bash`
-- `cargo nextest` recommended for faster local test runs
-
-Optional runtime dependencies:
-
-- Qdrant for live vector-backed daemon operation
-- OpenAI-compatible embeddings credentials for live embedding requests
+- Behavior, APIs, and persisted formats may change until the project is stable.
+- Before first release, backward compatibility is out of scope unless a spec or plan explicitly requires it.
 
 ## Quick Start
 
@@ -44,7 +19,7 @@ cargo build --workspace
 scripts/check-tests.sh
 ```
 
-Minimal local workflow:
+Minimal local run:
 
 ```bash
 cp examples/rarag.example.toml ~/.config/rarag/rarag.toml
@@ -53,100 +28,40 @@ rarag index build --worktree "$PWD"
 rarag query --worktree "$PWD" --mode understand-symbol --text "snapshot store"
 ```
 
-## Configuration
+## Start Here
 
-- Canonical config file: `rarag.toml`
-- Example config: `examples/rarag.example.toml`
-- Config is shared across `rarag`, `raragd`, and `rarag-mcp`
-- Code defaults remain usable when no config file exists
-- Override order is defined in the architecture spec and implemented in `rarag-core`
-- Retrieval scoring can be tuned through:
-  - `[retrieval.rerank]`
-  - `[retrieval.neighborhood]`
-- Observability is opt-in and controlled through:
-  - `[observability] enabled = true | false`
-  - `[observability] verbosity = "off" | "summary" | "detailed"`
-- Live daemon config reload is available through:
-  - `SIGHUP`
-  - `rarag daemon reload`
-  - MCP tool `rag_reload_config`
+- Install and local setup: `INSTALL.md`
+- User systemd services: `docs/ops/systemd-user.md`
+- Qdrant runtime operations: `docs/ops/qdrant-runtime.md`
+- MCP client integrations: `docs/integrations/README.md`
+- Canonical behavior spec: `docs/specs/repository-rag-architecture.md`
 
-Secrets policy:
+## Repository Layout
 
-- keep secrets out of repo files
-- reference environment variable names in config
-- one local pattern used in development is `~/.config/sharo/daemon.env`
-
-Default live embedding shape:
-
-- `base_url = "https://api.openai.com/v1"`
-- `endpoint_path = "/embeddings"`
-- `model = "text-embedding-3-small"`
-
-Observability behavior:
-
-- `summary` emits one structured retrieval event per query
-- `detailed` also emits one structured candidate event per ranked candidate
-- when observability is enabled, retrieval history is also persisted to the metadata DB for offline eval generation
-- Local daemon and MCP Unix-socket servers enforce bounded request sizes and short read deadlines so stalled or oversized local clients fail fast instead of blocking the endpoint indefinitely
-- Daemon request limits apply to inbound request frames; valid daemon responses are not capped by that inbound ceiling
-- MCP socket deadlines apply to the whole request-assembly window, so slow-drip local clients time out even if they keep sending occasional bytes
-
-## Runtime Operations
-
-- Qdrant runtime guide: `docs/ops/qdrant-runtime.md`
-- Live stack verification: `scripts/check-live-rag-stack.sh`
-- Deterministic local and CI tests do not require live Qdrant or live embedding calls
-- Live daemon operation does require a reachable Qdrant endpoint and embedding credentials
-- Config reload is validate-then-swap; failed reloads keep the last known-good daemon settings active
+- `crates/rarag-core`: shared config, snapshot, chunking, indexing, retrieval, reranking
+- `crates/raragd`: local Unix-socket daemon runtime
+- `crates/rarag`: CLI client
+- `crates/rarag-mcp`: local MCP-compatible Unix-socket server
+- `docs/`: specs, plans, ops docs, integration docs, templates
+- `examples/`: non-secret config examples
+- `scripts/`: bootstrap and verification helpers
 
 ## Development Workflow
 
-1. Update or create the relevant spec in `docs/specs/`
-2. Create or update the implementation plan in `docs/plans/`
-3. Execute against the plan and keep verification evidence current
-4. Run fast feedback after each relevant edit batch:
+1. Update/create spec in `docs/specs/` for non-trivial behavior changes.
+2. Create/update an implementation plan in `docs/plans/`.
+3. Run fast feedback after relevant edit batches:
    `scripts/check-fast-feedback.sh`
-5. Update `CHANGELOG.md` for task-completion work
-6. Use Conventional Commits
-7. Install hooks once per clone:
+4. Update `CHANGELOG.md` for task-completion work.
+5. Use Conventional Commits and install hooks:
    `scripts/install-hooks.sh`
-
-## Verification Commands
-
-- `scripts/check-fast-feedback.sh`
-- `scripts/check-tests.sh`
-- `cargo test --workspace`
-- `cargo clippy --workspace --all-targets -- -D warnings`
-- `scripts/check-live-rag-stack.sh` for opt-in live OpenAI + Qdrant validation
-
-## Documentation
-
-- Canonical specs: `docs/specs/`
-- Execution plans: `docs/plans/`
-- Templates: `docs/templates/`
-- Task registry: `docs/tasks/tasks.csv`
-
-Recommended flow:
-
-1. Update or create spec first.
-2. Create/update plan.
-3. Execute work against the plan and record verification evidence.
-
-## Contributing
-
-- Keep changes scoped and reversible.
-- Include tests for behavior changes.
-- Prefer worktree-isolated development for non-trivial branches.
-- Include verification evidence with changes and reviews.
 
 ## Security
 
-- Report vulnerabilities by opening an issue in this repository unless a separate reporting path is documented later.
 - Do not commit secrets.
-- Use least-privilege credentials and local environment files.
-- Treat live provider responses, MCP inputs, and external content as untrusted input.
+- Use least-privilege credentials and local env files.
+- Treat MCP inputs and provider responses as untrusted input.
 
 ## License
 
-GPL-3.0-or-later (see `LICENSE`)
+GPL-3.0-or-later (`LICENSE`)
