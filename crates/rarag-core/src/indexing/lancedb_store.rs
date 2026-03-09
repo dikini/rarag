@@ -416,15 +416,14 @@ fn cosine_similarity(left: &[f32], right: &[f32]) -> f32 {
     }
 }
 
-fn l2_distance(left: &[f32], right: &[f32]) -> f32 {
+fn l2_distance_squared(left: &[f32], right: &[f32]) -> f32 {
     left.iter()
         .zip(right)
         .map(|(a, b)| {
             let delta = a - b;
             delta * delta
         })
-        .sum::<f32>()
-        .sqrt()
+        .sum()
 }
 
 fn dot_product(left: &[f32], right: &[f32]) -> f32 {
@@ -442,7 +441,7 @@ fn lancedb_distance_type(distance_metric: VectorDistanceMetric) -> lancedb::Dist
 fn score_from_metric(distance_metric: VectorDistanceMetric, left: &[f32], right: &[f32]) -> f32 {
     match distance_metric {
         VectorDistanceMetric::Cosine => cosine_similarity(left, right),
-        VectorDistanceMetric::L2 => -l2_distance(left, right),
+        VectorDistanceMetric::L2 => -l2_distance_squared(left, right),
         VectorDistanceMetric::Dot => dot_product(left, right),
     }
 }
@@ -451,7 +450,7 @@ fn score_from_distance(distance_metric: VectorDistanceMetric, distance: f32) -> 
     match distance_metric {
         VectorDistanceMetric::Cosine => 1.0 - distance,
         VectorDistanceMetric::L2 => -distance,
-        VectorDistanceMetric::Dot => -distance,
+        VectorDistanceMetric::Dot => 1.0 - distance,
     }
 }
 
@@ -503,6 +502,7 @@ mod tests {
 
     use arrow_array::{Float32Array, Float64Array, Int32Array, RecordBatch};
     use arrow_schema::{DataType, Field, Schema};
+    use tempfile::tempdir;
 
     fn sample_chunks() -> Vec<Chunk> {
         vec![
@@ -647,5 +647,65 @@ mod tests {
             .expect("int distance batch");
         let err = distance_values(&batch).expect_err("unsupported distance type should fail");
         assert!(err.contains("unsupported type"), "unexpected err: {err}");
+    }
+
+    #[tokio::test]
+    async fn local_and_memory_scores_are_metric_consistent() {
+        let chunks = sample_chunks();
+        let vectors = vec![vec![0.8, 0.2, 0.0], vec![0.1, 0.9, 0.0]];
+        let query = vec![0.9, 0.1, 0.0];
+        let metrics = [
+            VectorDistanceMetric::Cosine,
+            VectorDistanceMetric::L2,
+            VectorDistanceMetric::Dot,
+        ];
+
+        for metric in metrics {
+            let dir = tempdir().expect("tempdir");
+            let local = LanceDbPointStore::new_with_metric(
+                dir.path().display().to_string(),
+                format!("vectors_{metric:?}"),
+                3,
+                metric,
+            )
+            .expect("local store");
+            let memory = LanceDbPointStore::new_in_memory_with_metric(
+                "memory://parity",
+                format!("vectors_{metric:?}"),
+                3,
+                metric,
+            );
+
+            local
+                .replace_snapshot("snap-1", &chunks, vectors.clone())
+                .await
+                .expect("local insert");
+            memory
+                .replace_snapshot("snap-1", &chunks, vectors.clone())
+                .await
+                .expect("memory insert");
+
+            let local_hits = local
+                .search_snapshot("snap-1", &query, 2)
+                .await
+                .expect("local search");
+            let memory_hits = memory
+                .search_snapshot("snap-1", &query, 2)
+                .await
+                .expect("memory search");
+
+            assert_eq!(local_hits.len(), memory_hits.len(), "metric={metric:?}");
+            assert_eq!(
+                local_hits[0].chunk_id, memory_hits[0].chunk_id,
+                "metric={metric:?}"
+            );
+            let delta = (local_hits[0].score - memory_hits[0].score).abs();
+            assert!(
+                delta < 0.001,
+                "metric={metric:?} score mismatch local={} memory={} delta={delta}",
+                local_hits[0].score,
+                memory_hits[0].score
+            );
+        }
     }
 }
