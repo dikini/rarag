@@ -74,6 +74,7 @@ The format is based on Common Changelog:
 - Fixed retrieval observability so it records ranked candidate features for eval generation without changing the returned top-N results, and so structured query logs still emit even if observation persistence fails.
 - Fixed observation persistence to store observation list fields losslessly and commit query plus candidate observation rows atomically, avoiding comma-corrupted eval data and per-candidate write amplification when observability is enabled.
 - Fixed `scripts/check-live-rag-stack.sh` cleanup to use bounded waits with TERM/KILL fallback so daemon shutdown does not hang after successful live-check output.
+- Fixed dependency license policy for the Lance/LanceDB stack by explicitly allowing additional transitive OSS license IDs (`BSD-2-Clause`, `0BSD`, `BSL-1.0`, `CC0-1.0`, `MPL-2.0`) required by current graph resolution.
 
 - Excluded local `target/` build artifacts from `scripts/init-from-backbone.sh` copies so starter repository initialization stays deterministic and does not pull developer build output into generated repos.
 - Fixed worktree-root snapshot resolution to select the latest snapshot instead of failing after repeated indexing, switched the operational vector store to endpoint-backed Qdrant with an explicit test-only in-memory fallback, and hardened Unix-socket cleanup to refuse non-socket paths.
