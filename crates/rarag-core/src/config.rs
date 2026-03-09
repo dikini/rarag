@@ -49,6 +49,7 @@ impl Default for AppConfig {
             lancedb: LanceDbConfig {
                 db_root: format!("{state_root}/rarag/lancedb"),
                 table: "rarag_chunks".into(),
+                distance_metric: VectorDistanceMetric::Cosine,
             },
             embeddings: EmbeddingProviderConfig {
                 base_url: "https://api.openai.com/v1".into(),
@@ -303,6 +304,15 @@ pub struct TantivyConfig {
 pub struct LanceDbConfig {
     pub db_root: String,
     pub table: String,
+    pub distance_metric: VectorDistanceMetric,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum VectorDistanceMetric {
+    Cosine,
+    L2,
+    Dot,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -105,6 +105,9 @@ fn apply_overrides(config: &mut AppConfig, overrides: PartialAppConfig) {
         if let Some(table) = lancedb.table {
             config.lancedb.table = table;
         }
+        if let Some(distance_metric) = lancedb.distance_metric {
+            config.lancedb.distance_metric = distance_metric;
+        }
     }
 
     if let Some(embeddings) = overrides.embeddings {
@@ -334,6 +337,7 @@ struct PartialTantivyConfig {
 struct PartialLanceDbConfig {
     db_root: Option<String>,
     table: Option<String>,
+    distance_metric: Option<crate::config::VectorDistanceMetric>,
 }
 
 #[derive(Debug, Deserialize, Default)]

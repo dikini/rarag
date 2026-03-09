@@ -1,12 +1,18 @@
 use std::sync::Arc;
 
 use arrow_array::types::Float32Type;
-use arrow_array::{Array, Float32Array, FixedSizeListArray, RecordBatch, RecordBatchIterator, StringArray};
+use arrow_array::{
+    Array, FixedSizeListArray, Float32Array, Float64Array, RecordBatch, RecordBatchIterator,
+    StringArray,
+};
 use arrow_schema::{DataType, Field, Schema};
 use futures::TryStreamExt;
+use lancedb::index::vector::IvfFlatIndexBuilder;
+use lancedb::index::Index;
 use lancedb::query::{ExecutableQuery, QueryBase};
 
 use crate::chunking::Chunk;
+use crate::config::VectorDistanceMetric;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct VectorSearchHit {
@@ -33,14 +39,16 @@ pub struct LanceDbPointStore {
     db_root: String,
     table_name: String,
     dimensions: usize,
+    distance_metric: VectorDistanceMetric,
     backend: LanceDbBackend,
 }
 
 impl LanceDbPointStore {
-    pub fn new(
+    pub fn new_with_metric(
         db_root: impl Into<String>,
         table_name: impl Into<String>,
         dimensions: usize,
+        distance_metric: VectorDistanceMetric,
     ) -> Result<Self, String> {
         let db_root = db_root.into();
         if dimensions == 0 {
@@ -54,8 +62,34 @@ impl LanceDbPointStore {
             db_root,
             table_name: table_name.into(),
             dimensions,
+            distance_metric,
             backend: LanceDbBackend::Local,
         })
+    }
+
+    pub fn new(
+        db_root: impl Into<String>,
+        table_name: impl Into<String>,
+        dimensions: usize,
+    ) -> Result<Self, String> {
+        Self::new_with_metric(db_root, table_name, dimensions, VectorDistanceMetric::Cosine)
+    }
+
+    pub fn new_in_memory_with_metric(
+        db_root: impl Into<String>,
+        table_name: impl Into<String>,
+        dimensions: usize,
+        distance_metric: VectorDistanceMetric,
+    ) -> Self {
+        Self {
+            db_root: db_root.into(),
+            table_name: table_name.into(),
+            dimensions,
+            distance_metric,
+            backend: LanceDbBackend::InMemory {
+                points: std::sync::Mutex::new(Vec::new()),
+            },
+        }
     }
 
     pub fn new_in_memory(
@@ -63,14 +97,12 @@ impl LanceDbPointStore {
         table_name: impl Into<String>,
         dimensions: usize,
     ) -> Self {
-        Self {
-            db_root: db_root.into(),
-            table_name: table_name.into(),
+        Self::new_in_memory_with_metric(
+            db_root,
+            table_name,
             dimensions,
-            backend: LanceDbBackend::InMemory {
-                points: std::sync::Mutex::new(Vec::new()),
-            },
-        }
+            VectorDistanceMetric::Cosine,
+        )
     }
 
     pub fn db_root(&self) -> &str {
@@ -119,6 +151,7 @@ impl LanceDbPointStore {
                     .execute()
                     .await
                     .map_err(|err| err.to_string())?;
+                self.ensure_vector_index(&table).await?;
 
                 Ok(chunks.len())
             }
@@ -150,7 +183,7 @@ impl LanceDbPointStore {
                         snapshot_id: point.snapshot_id.clone(),
                         chunk_id: point.chunk_id.clone(),
                         symbol_path: point.symbol_path.clone(),
-                        score: cosine_similarity(&point.vector, query_vector),
+                        score: score_from_metric(self.distance_metric, &point.vector, query_vector),
                     })
                     .collect();
                 hits.sort_by(|left, right| right.score.total_cmp(&left.score));
@@ -182,6 +215,7 @@ impl LanceDbPointStore {
                     .limit(limit)
                     .nearest_to(query_vector)
                     .map_err(|err| err.to_string())?
+                    .distance_type(lancedb_distance_type(self.distance_metric))
                     .execute()
                     .await
                     .map_err(|err| err.to_string())?
@@ -202,14 +236,10 @@ impl LanceDbPointStore {
                     let symbol_paths = batch
                         .column_by_name("symbol_path")
                         .and_then(|column| column.as_any().downcast_ref::<StringArray>());
-                    let scores = batch
-                        .column_by_name("_distance")
-                        .and_then(|column| column.as_any().downcast_ref::<Float32Array>());
+                    let distances = distance_values(&batch)?;
 
                     for index in 0..batch.num_rows() {
-                        let score = scores
-                            .map(|values| -values.value(index))
-                            .unwrap_or_default();
+                        let score = score_from_distance(self.distance_metric, distances[index]);
                         hits.push(VectorSearchHit {
                             snapshot_id: snapshot_ids.value(index).to_string(),
                             chunk_id: chunk_ids.value(index).to_string(),
@@ -304,6 +334,21 @@ impl LanceDbPointStore {
             .map_err(|err| err.to_string())
     }
 
+    async fn ensure_vector_index(&self, table: &lancedb::Table) -> Result<(), String> {
+        table
+            .create_index(
+                &["vector"],
+                Index::IvfFlat(
+                    IvfFlatIndexBuilder::default()
+                        .distance_type(lancedb_distance_type(self.distance_metric)),
+                ),
+            )
+            .replace(true)
+            .execute()
+            .await
+            .map_err(|err| err.to_string())
+    }
+
     fn build_batch(
         &self,
         snapshot_id: &str,
@@ -371,10 +416,93 @@ fn cosine_similarity(left: &[f32], right: &[f32]) -> f32 {
     }
 }
 
+fn l2_distance(left: &[f32], right: &[f32]) -> f32 {
+    left.iter()
+        .zip(right)
+        .map(|(a, b)| {
+            let delta = a - b;
+            delta * delta
+        })
+        .sum::<f32>()
+        .sqrt()
+}
+
+fn dot_product(left: &[f32], right: &[f32]) -> f32 {
+    left.iter().zip(right).map(|(a, b)| a * b).sum()
+}
+
+fn lancedb_distance_type(distance_metric: VectorDistanceMetric) -> lancedb::DistanceType {
+    match distance_metric {
+        VectorDistanceMetric::Cosine => lancedb::DistanceType::Cosine,
+        VectorDistanceMetric::L2 => lancedb::DistanceType::L2,
+        VectorDistanceMetric::Dot => lancedb::DistanceType::Dot,
+    }
+}
+
+fn score_from_metric(distance_metric: VectorDistanceMetric, left: &[f32], right: &[f32]) -> f32 {
+    match distance_metric {
+        VectorDistanceMetric::Cosine => cosine_similarity(left, right),
+        VectorDistanceMetric::L2 => -l2_distance(left, right),
+        VectorDistanceMetric::Dot => dot_product(left, right),
+    }
+}
+
+fn score_from_distance(distance_metric: VectorDistanceMetric, distance: f32) -> f32 {
+    match distance_metric {
+        VectorDistanceMetric::Cosine => 1.0 - distance,
+        VectorDistanceMetric::L2 => -distance,
+        VectorDistanceMetric::Dot => -distance,
+    }
+}
+
+fn distance_values(batch: &RecordBatch) -> Result<Vec<f32>, String> {
+    let distances = batch
+        .column_by_name("_distance")
+        .ok_or_else(|| "lancedb result missing _distance column".to_string())?;
+
+    if let Some(values) = distances.as_any().downcast_ref::<Float32Array>() {
+        return (0..values.len())
+            .map(|index| {
+                if values.is_null(index) {
+                    Err("lancedb result contains null _distance".to_string())
+                } else if !values.value(index).is_finite() {
+                    Err("lancedb result contains non-finite _distance".to_string())
+                } else {
+                    Ok(values.value(index))
+                }
+            })
+            .collect();
+    }
+
+    if let Some(values) = distances.as_any().downcast_ref::<Float64Array>() {
+        return (0..values.len())
+            .map(|index| {
+                if values.is_null(index) {
+                    Err("lancedb result contains null _distance".to_string())
+                } else if !values.value(index).is_finite() {
+                    Err("lancedb result contains non-finite _distance".to_string())
+                } else {
+                    Ok(values.value(index) as f32)
+                }
+            })
+            .collect();
+    }
+
+    Err(format!(
+        "lancedb _distance column had unsupported type {}",
+        distances.data_type()
+    ))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::LanceDbPointStore;
+    use super::{distance_values, LanceDbPointStore};
     use crate::chunking::{Chunk, ChunkKind, SourceSpan};
+    use crate::config::VectorDistanceMetric;
+    use std::sync::Arc;
+
+    use arrow_array::{Float32Array, Float64Array, Int32Array, RecordBatch};
+    use arrow_schema::{DataType, Field, Schema};
 
     fn sample_chunks() -> Vec<Chunk> {
         vec![
@@ -454,7 +582,12 @@ mod tests {
 
     #[tokio::test]
     async fn returns_sorted_hits_with_limit() {
-        let store = LanceDbPointStore::new_in_memory("memory://test", "vectors", 3);
+        let store = LanceDbPointStore::new_in_memory_with_metric(
+            "memory://test",
+            "vectors",
+            3,
+            VectorDistanceMetric::Cosine,
+        );
         let chunks = sample_chunks();
         store
             .replace_snapshot(
@@ -472,5 +605,47 @@ mod tests {
 
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].chunk_id, "chunk-1");
+    }
+
+    #[test]
+    fn extracts_distance_values_from_float32_and_float64() {
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "_distance",
+            DataType::Float32,
+            false,
+        )]));
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(Float32Array::from(vec![0.2]))])
+            .expect("f32 batch");
+        let values = distance_values(&batch).expect("f32 parse");
+        assert_eq!(values, vec![0.2]);
+
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "_distance",
+            DataType::Float64,
+            false,
+        )]));
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(Float64Array::from(vec![0.4]))])
+            .expect("f64 batch");
+        let values = distance_values(&batch).expect("f64 parse");
+        assert_eq!(values, vec![0.4]);
+    }
+
+    #[test]
+    fn rejects_missing_or_unsupported_distance_column() {
+        let schema = Arc::new(Schema::new(vec![Field::new("x", DataType::Int32, false)]));
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(Int32Array::from(vec![1]))])
+            .expect("int batch");
+        let err = distance_values(&batch).expect_err("missing _distance should fail");
+        assert!(err.contains("_distance"), "unexpected err: {err}");
+
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "_distance",
+            DataType::Int32,
+            false,
+        )]));
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(Int32Array::from(vec![1]))])
+            .expect("int distance batch");
+        let err = distance_values(&batch).expect_err("unsupported distance type should fail");
+        assert!(err.contains("unsupported type"), "unexpected err: {err}");
     }
 }

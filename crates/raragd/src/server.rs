@@ -59,16 +59,18 @@ impl DaemonState {
         let metadata = SnapshotStore::open_local(&metadata_path.display().to_string()).await?;
         let tantivy = TantivyChunkStore::open(Path::new(&config.tantivy.index_root))?;
         let lancedb = if serve.memory_vector_store {
-            LanceDbPointStore::new_in_memory(
+            LanceDbPointStore::new_in_memory_with_metric(
                 "memory://daemon-test",
                 &config.lancedb.table,
                 config.embeddings.dimensions,
+                config.lancedb.distance_metric,
             )
         } else {
-            LanceDbPointStore::new(
+            LanceDbPointStore::new_with_metric(
                 &config.lancedb.db_root,
                 &config.lancedb.table,
                 config.embeddings.dimensions,
+                config.lancedb.distance_metric,
             )?
         };
         let provider = if serve.deterministic_embeddings {
