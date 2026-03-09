@@ -3,6 +3,7 @@ use std::process::Command;
 use std::sync::{Mutex, OnceLock};
 use std::{fs, os::unix::fs::PermissionsExt};
 
+use rarag_core::config::VectorDistanceMetric;
 use rarag_core::config_loader::load_app_config;
 use tempfile::tempdir;
 
@@ -150,7 +151,8 @@ fn example_toml_matches_resolved_shape() {
     assert_eq!(config.embeddings.base_url, "https://api.openai.com/v1");
     assert_eq!(config.embeddings.endpoint_path, "/embeddings");
     assert_eq!(config.embeddings.model, "text-embedding-3-small");
-    assert_eq!(config.qdrant.collection, "rarag_chunks");
+    assert_eq!(config.lancedb.table, "rarag_chunks");
+    assert_eq!(config.lancedb.distance_metric, VectorDistanceMetric::Cosine);
 }
 
 #[test]

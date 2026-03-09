@@ -1,7 +1,8 @@
 use rarag_core::config::{
     AppConfig, CliConfig, DaemonConfig, EmbeddingProviderConfig, McpConfig,
-    NeighborhoodWeightsConfig, ObservabilityConfig, ObservabilityVerbosity, QdrantConfig,
+    NeighborhoodWeightsConfig, ObservabilityConfig, ObservabilityVerbosity, LanceDbConfig,
     RerankWeightsConfig, RetrievalConfig, RuntimePaths, TantivyConfig, TursoConfig,
+    VectorDistanceMetric,
 };
 use rarag_core::snapshot::SnapshotKey;
 
@@ -19,9 +20,10 @@ fn sample_config() -> AppConfig {
         tantivy: TantivyConfig {
             index_root: "/tmp/rarag/index".into(),
         },
-        qdrant: QdrantConfig {
-            endpoint: "http://127.0.0.1:6334".into(),
-            collection: "rarag_chunks".into(),
+        lancedb: LanceDbConfig {
+            db_root: "/tmp/rarag/lancedb".into(),
+            table: "rarag_chunks".into(),
+            distance_metric: VectorDistanceMetric::Cosine,
         },
         embeddings: EmbeddingProviderConfig {
             base_url: "https://api.openai.com/v1".into(),
@@ -69,6 +71,7 @@ fn builds_default_app_config() {
     assert_eq!(config.observability.verbosity, ObservabilityVerbosity::Off);
     assert_eq!(config.retrieval.rerank.find_examples_example_like, 0.8);
     assert_eq!(config.retrieval.neighborhood.same_file, 4.0);
+    assert_eq!(config.lancedb.distance_metric, VectorDistanceMetric::Cosine);
 }
 
 #[test]
@@ -86,9 +89,10 @@ fn binary_sections_are_optional() {
         "tantivy": {
             "index_root": "/tmp/rarag/index"
         },
-        "qdrant": {
-            "endpoint": "http://127.0.0.1:6334",
-            "collection": "rarag_chunks"
+        "lancedb": {
+            "db_root": "/tmp/rarag/lancedb",
+            "table": "rarag_chunks",
+            "distance_metric": "cosine"
         },
         "embeddings": {
             "base_url": "https://api.openai.com/v1",
@@ -132,9 +136,10 @@ fn parses_rerank_and_observability_sections() {
         "tantivy": {
             "index_root": "/tmp/rarag/index"
         },
-        "qdrant": {
-            "endpoint": "http://127.0.0.1:6334",
-            "collection": "rarag_chunks"
+        "lancedb": {
+            "db_root": "/tmp/rarag/lancedb",
+            "table": "rarag_chunks",
+            "distance_metric": "dot"
         },
         "embeddings": {
             "base_url": "https://api.openai.com/v1",
@@ -163,6 +168,7 @@ fn parses_rerank_and_observability_sections() {
     assert_eq!(config.retrieval.rerank.bounded_refactor_test_like, 1.1);
     assert_eq!(config.retrieval.rerank.worktree_diff_blast_radius, 1.5);
     assert_eq!(config.retrieval.neighborhood.same_file, 4.5);
+    assert_eq!(config.lancedb.distance_metric, VectorDistanceMetric::Dot);
     assert_eq!(
         config.retrieval.neighborhood.semantic_impl_bounded_refactor,
         9.0

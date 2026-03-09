@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use rarag_core::chunking::RustChunker;
 use rarag_core::embeddings::{EmbeddingProvider, OpenAiCompatibleEmbeddings};
-use rarag_core::indexing::{ChunkIndexer, QdrantPointStore, TantivyChunkStore};
+use rarag_core::indexing::{ChunkIndexer, LanceDbPointStore, TantivyChunkStore};
 use rarag_core::metadata::SnapshotStore;
 use rarag_core::snapshot::SnapshotKey;
 use tempfile::tempdir;
@@ -135,9 +135,9 @@ fn metadata_lexical_and_vector_counts_match() {
             .await
             .expect("create snapshot");
         let tantivy = TantivyChunkStore::open(&tantivy_dir).expect("open tantivy");
-        let qdrant = QdrantPointStore::new_in_memory("memory://index-pipeline", "rarag_chunks", 4);
+        let lancedb = LanceDbPointStore::new_in_memory("memory://index-pipeline", "rarag_chunks", 4);
         let provider = StaticEmbeddingProvider { dimensions: 4 };
-        let indexer = ChunkIndexer::new(&metadata, &tantivy, &qdrant, &provider);
+        let indexer = ChunkIndexer::new(&metadata, &tantivy, &lancedb, &provider);
         let chunks = RustChunker::new(80)
             .chunk_workspace(&fixture_root())
             .expect("chunk workspace");
@@ -173,9 +173,9 @@ fn reindexes_fixture_repository() {
             .await
             .expect("create snapshot");
         let tantivy = TantivyChunkStore::open(&tantivy_dir).expect("open tantivy");
-        let qdrant = QdrantPointStore::new_in_memory("memory://index-pipeline", "rarag_chunks", 4);
+        let lancedb = LanceDbPointStore::new_in_memory("memory://index-pipeline", "rarag_chunks", 4);
         let provider = StaticEmbeddingProvider { dimensions: 4 };
-        let indexer = ChunkIndexer::new(&metadata, &tantivy, &qdrant, &provider);
+        let indexer = ChunkIndexer::new(&metadata, &tantivy, &lancedb, &provider);
         let chunks = RustChunker::new(80)
             .chunk_workspace(&fixture_root())
             .expect("chunk workspace");
@@ -193,7 +193,7 @@ fn reindexes_fixture_repository() {
         assert_eq!(symbol_hits.len(), 1);
         assert_eq!(
             indexer
-                .qdrant_store()
+                .lancedb_store()
                 .point_count()
                 .await
                 .expect("point count"),

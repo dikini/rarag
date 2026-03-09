@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use rarag_core::chunking::RustChunker;
 use rarag_core::config::{ObservabilityConfig, ObservabilityVerbosity, RetrievalConfig};
 use rarag_core::embeddings::EmbeddingProvider;
-use rarag_core::indexing::{ChunkIndexer, QdrantPointStore, TantivyChunkStore};
+use rarag_core::indexing::{ChunkIndexer, LanceDbPointStore, TantivyChunkStore};
 use rarag_core::metadata::SnapshotStore;
 use rarag_core::retrieval::{QueryMode, RepositoryRetriever, RetrievalRequest};
 use rarag_core::snapshot::SnapshotKey;
@@ -57,7 +57,7 @@ async fn build_retriever_for(
     tempfile::TempDir,
     SnapshotStore,
     TantivyChunkStore,
-    QdrantPointStore,
+    LanceDbPointStore,
     StaticEmbeddingProvider,
 ) {
     let dir = tempdir().expect("tempdir");
@@ -78,9 +78,9 @@ async fn build_retriever_for(
         .await
         .expect("create snapshot");
     let tantivy = TantivyChunkStore::open(&tantivy_dir).expect("open tantivy");
-    let qdrant = QdrantPointStore::new_in_memory("memory://tests", "rarag_chunks", 4);
+    let lancedb = LanceDbPointStore::new_in_memory("memory://tests", "rarag_chunks", 4);
     let provider = StaticEmbeddingProvider { dimensions: 4 };
-    let indexer = ChunkIndexer::new(&metadata, &tantivy, &qdrant, &provider);
+    let indexer = ChunkIndexer::new(&metadata, &tantivy, &lancedb, &provider);
     let chunks = RustChunker::new(max_body_bytes)
         .chunk_workspace(fixture_root)
         .expect("chunk workspace");
@@ -89,7 +89,7 @@ async fn build_retriever_for(
         .await
         .expect("reindex snapshot");
 
-    (snapshot.id, dir, metadata, tantivy, qdrant, provider)
+    (snapshot.id, dir, metadata, tantivy, lancedb, provider)
 }
 
 async fn build_retriever() -> (
@@ -97,7 +97,7 @@ async fn build_retriever() -> (
     tempfile::TempDir,
     SnapshotStore,
     TantivyChunkStore,
-    QdrantPointStore,
+    LanceDbPointStore,
     StaticEmbeddingProvider,
 ) {
     build_retriever_for(&fixture_root(), "/repo/.worktrees/retrieval-a", 80).await
@@ -106,8 +106,8 @@ async fn build_retriever() -> (
 #[test]
 fn prioritizes_exact_symbol_match() {
     runtime().block_on(async {
-        let (snapshot_id, _dir, metadata, tantivy, qdrant, provider) = build_retriever().await;
-        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &qdrant, &provider);
+        let (snapshot_id, _dir, metadata, tantivy, lancedb, provider) = build_retriever().await;
+        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &lancedb, &provider);
         let response = retriever
             .retrieve(
                 RetrievalRequest::new(
@@ -133,8 +133,8 @@ fn prioritizes_exact_symbol_match() {
 #[test]
 fn caps_neighborhood_size_by_mode() {
     runtime().block_on(async {
-        let (snapshot_id, _dir, metadata, tantivy, qdrant, provider) = build_retriever().await;
-        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &qdrant, &provider);
+        let (snapshot_id, _dir, metadata, tantivy, lancedb, provider) = build_retriever().await;
+        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &lancedb, &provider);
         let response = retriever
             .retrieve(
                 RetrievalRequest::new(snapshot_id, QueryMode::UnderstandSymbol, "example_sum")
@@ -180,9 +180,9 @@ fn results_never_cross_snapshot_boundary() {
             .await
             .expect("create snapshot b");
         let tantivy = TantivyChunkStore::open(&tantivy_dir).expect("open tantivy");
-        let qdrant = QdrantPointStore::new_in_memory("memory://tests", "rarag_chunks", 4);
+        let lancedb = LanceDbPointStore::new_in_memory("memory://tests", "rarag_chunks", 4);
         let provider = StaticEmbeddingProvider { dimensions: 4 };
-        let indexer = ChunkIndexer::new(&metadata, &tantivy, &qdrant, &provider);
+        let indexer = ChunkIndexer::new(&metadata, &tantivy, &lancedb, &provider);
         let chunks = RustChunker::new(80)
             .chunk_workspace(&fixture_root())
             .expect("chunk workspace");
@@ -196,7 +196,7 @@ fn results_never_cross_snapshot_boundary() {
             .expect("reindex snapshot b");
 
         let provider = StaticEmbeddingProvider { dimensions: 4 };
-        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &qdrant, &provider);
+        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &lancedb, &provider);
         let response = retriever
             .retrieve(
                 RetrievalRequest::new(snapshot_a.id.clone(), QueryMode::BlastRadius, "example_sum")
@@ -218,8 +218,8 @@ fn results_never_cross_snapshot_boundary() {
 #[test]
 fn bounded_refactor_returns_tests_and_references() {
     runtime().block_on(async {
-        let (snapshot_id, _dir, metadata, tantivy, qdrant, provider) = build_retriever().await;
-        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &qdrant, &provider);
+        let (snapshot_id, _dir, metadata, tantivy, lancedb, provider) = build_retriever().await;
+        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &lancedb, &provider);
         let response = retriever
             .retrieve(
                 RetrievalRequest::new(
@@ -249,8 +249,8 @@ fn bounded_refactor_returns_tests_and_references() {
 #[test]
 fn falls_back_to_lexical_bm25_when_symbol_path_is_missing() {
     runtime().block_on(async {
-        let (snapshot_id, _dir, metadata, tantivy, qdrant, provider) = build_retriever().await;
-        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &qdrant, &provider);
+        let (snapshot_id, _dir, metadata, tantivy, lancedb, provider) = build_retriever().await;
+        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &lancedb, &provider);
         let response = retriever
             .retrieve(
                 RetrievalRequest::new(snapshot_id, QueryMode::FindExamples, "oversized_example")
@@ -269,13 +269,13 @@ fn falls_back_to_lexical_bm25_when_symbol_path_is_missing() {
 #[test]
 fn lexical_query_can_hit_docs_and_example_text() {
     runtime().block_on(async {
-        let (snapshot_id, _dir, metadata, tantivy, qdrant, provider) = build_retriever_for(
+        let (snapshot_id, _dir, metadata, tantivy, lancedb, provider) = build_retriever_for(
             &compat_fixture_root(),
             "/repo/.worktrees/retrieval-compat",
             120,
         )
         .await;
-        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &qdrant, &provider);
+        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &lancedb, &provider);
         let response = retriever
             .retrieve(
                 RetrievalRequest::new(
@@ -298,8 +298,8 @@ fn lexical_query_can_hit_docs_and_example_text() {
 #[test]
 fn observation_capture_does_not_change_ranked_results() {
     runtime().block_on(async {
-        let (snapshot_id, _dir, metadata, tantivy, qdrant, provider) = build_retriever().await;
-        let baseline = RepositoryRetriever::new(&metadata, &tantivy, &qdrant, &provider)
+        let (snapshot_id, _dir, metadata, tantivy, lancedb, provider) = build_retriever().await;
+        let baseline = RepositoryRetriever::new(&metadata, &tantivy, &lancedb, &provider)
             .retrieve(
                 RetrievalRequest::new(
                     snapshot_id.clone(),
@@ -315,7 +315,7 @@ fn observation_capture_does_not_change_ranked_results() {
         let observed = RepositoryRetriever::new_with_settings(
             &metadata,
             &tantivy,
-            &qdrant,
+            &lancedb,
             &provider,
             &RetrievalConfig::default(),
             &ObservabilityConfig {
@@ -339,11 +339,11 @@ fn observation_capture_does_not_change_ranked_results() {
 #[test]
 fn detailed_observation_captures_candidate_features() {
     runtime().block_on(async {
-        let (snapshot_id, _dir, metadata, tantivy, qdrant, provider) = build_retriever().await;
+        let (snapshot_id, _dir, metadata, tantivy, lancedb, provider) = build_retriever().await;
         let retriever = RepositoryRetriever::new_with_settings(
             &metadata,
             &tantivy,
-            &qdrant,
+            &lancedb,
             &provider,
             &RetrievalConfig::default(),
             &ObservabilityConfig {

@@ -17,6 +17,8 @@ The format is based on Common Changelog:
 - Added `docs/integrations/` documentation with a tiered support matrix and per-client MCP setup pages for Codex, Claude, opencode, goose, and kimi.
 - Added follow-up plan `docs/plans/2026-03-08-service-porcelain-followup-implementation-plan.md` for service-porcelain path-resolution fixes.
 - Added configurable heuristic rerank and neighborhood weights in shared TOML config, plus opt-in retrieval observation persistence for offline eval generation.
+- Added LanceDB ANN drift integration coverage that compares indexed (`nprobes`/`refine_factor`) versus flat-baseline score and top-k behavior for cosine, L2, and dot metrics.
+- Added low-memory nextest tuning by explicitly setting single-test execution in `.config/nextest.toml` and reducing Cargo build parallelism in `scripts/check-tests.sh` (configurable via `RARAG_NEXTEST_BUILD_JOBS` and `RARAG_NEXTEST_PROFILE`).
 - Added daemon config reload controls through `SIGHUP`, `rarag daemon reload`, and MCP tool `rag_reload_config`.
 - Added a repository RAG architecture spec, design note, and phased implementation plan for a Rust-first, worktree-aware hybrid retrieval system using Turso, Tantivy, Qdrant, `ra_ap_syntax`, and `rust-analyzer`.
 - Added the Phase 1 Rust workspace skeleton with `rarag-core`, `raragd`, `rarag`, and `rarag-mcp`, plus bootstrap tests and toolchain configuration.
@@ -64,11 +66,14 @@ The format is based on Common Changelog:
 - Changed the runtime query contract to drop workflow-phase inputs from `rarag-core`, `rarag`, `raragd`, and `rarag-mcp`, and renamed lexical/storage hint fields from `workflow_hints` to `repository_state_hints`.
 - Changed project policy to treat backward compatibility as out of scope until the first release unless a spec or plan explicitly requires it.
 - Changed retrieval scoring to read config-backed rerank and neighborhood weights while preserving the previous defaults when no overrides are set.
+- Changed the canonical repository RAG architecture and active implementation plan to migrate vector storage from endpoint-backed Qdrant to in-process local LanceDB while keeping snapshot-scoped retrieval and rerank evidence contracts.
+- Changed runtime operations and live-stack verification to use local LanceDB persistence instead of external Qdrant endpoint configuration.
 
 ### Fixed
 
 - Fixed retrieval observability so it records ranked candidate features for eval generation without changing the returned top-N results, and so structured query logs still emit even if observation persistence fails.
 - Fixed observation persistence to store observation list fields losslessly and commit query plus candidate observation rows atomically, avoiding comma-corrupted eval data and per-candidate write amplification when observability is enabled.
+- Fixed `scripts/check-live-rag-stack.sh` cleanup to use bounded waits with TERM/KILL fallback so daemon shutdown does not hang after successful live-check output.
 
 - Excluded local `target/` build artifacts from `scripts/init-from-backbone.sh` copies so starter repository initialization stays deterministic and does not pull developer build output into generated repos.
 - Fixed worktree-root snapshot resolution to select the latest snapshot instead of failing after repeated indexing, switched the operational vector store to endpoint-backed Qdrant with an explicit test-only in-memory fallback, and hardened Unix-socket cleanup to refuse non-socket paths.

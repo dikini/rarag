@@ -253,17 +253,20 @@ fn times_out_incomplete_requests() {
 }
 
 #[test]
-fn daemon_uses_configured_qdrant_endpoint() {
+fn daemon_uses_configured_lancedb_db_root() {
     let dir = tempdir().expect("tempdir");
     let socket_path = dir.path().join("raragd.sock");
     let config_path = dir.path().join("rarag.toml");
     std::fs::write(
         &config_path,
-        r#"
-[qdrant]
-endpoint = "http://127.0.0.1:1"
-collection = "rarag_chunks"
+        format!(
+            r#"
+[lancedb]
+db_root = "{}"
+table = "rarag_chunks_custom"
 "#,
+            dir.path().join("lancedb-store").display()
+        ),
     )
     .expect("write config");
 
@@ -315,7 +318,7 @@ collection = "rarag_chunks"
         &DaemonRequest::IndexWorkspace {
             snapshot: SnapshotKey::new(
                 "/repo",
-                "/repo/.worktrees/qdrant-config",
+                "/repo/.worktrees/lancedb-config",
                 "abc123",
                 "x86_64-unknown-linux-gnu",
                 ["default"],
@@ -327,16 +330,14 @@ collection = "rarag_chunks"
     );
 
     match response {
-        DaemonResponse::Error(error) => {
-            assert!(
-                error.message.contains("transport")
-                    || error.message.contains("connection")
-                    || error.message.contains("tcp"),
-                "message was: {:?}",
-                error
+        DaemonResponse::Indexed(payload) => {
+            assert_eq!(
+                payload.snapshot_id,
+                "/repo|/repo/.worktrees/lancedb-config|abc123|x86_64-unknown-linux-gnu|default|dev"
             );
+            assert!(payload.chunk_count > 0);
         }
-        other => panic!("expected qdrant connection error, got {other:?}"),
+        other => panic!("expected successful index response, got {other:?}"),
     }
 
     let shutdown = send_request(&socket_path, &DaemonRequest::Shutdown);

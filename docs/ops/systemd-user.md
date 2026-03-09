@@ -10,7 +10,7 @@ Assumptions:
 
 - binaries are installed and on `PATH`
 - `~/.config/rarag/rarag.toml` exists
-- runtime dependencies are configured (for example Qdrant for live vector runtime)
+- runtime dependencies are configured (for example embeddings credentials for live semantic indexing)
 
 ## Unit Locations
 
@@ -151,7 +151,7 @@ systemctl --user daemon-reload
 - socket path collision:
   - stop stale process and remove stale socket if needed
 - daemon starts but retrieval is weak:
-  - check Qdrant endpoint and embeddings configuration
+  - check LanceDB root path permissions and embeddings configuration
 - permission denied on runtime paths:
   - ensure user owns configured runtime/cache/state directories
 - MCP service up but client cannot connect:

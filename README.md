@@ -40,7 +40,7 @@ rarag service reload
 
 - Install and local setup: `INSTALL.md`
 - User systemd services: `docs/ops/systemd-user.md`
-- Qdrant runtime operations: `docs/ops/qdrant-runtime.md`
+- LanceDB runtime operations: `docs/ops/lancedb-runtime.md`
 - MCP client integrations: `docs/integrations/README.md`
 - Canonical behavior spec: `docs/specs/repository-rag-architecture.md`
 

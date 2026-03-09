@@ -104,7 +104,7 @@ rarag status --worktree "$PWD" --json
 
 ## Path C: Advanced / Custom Layout
 
-Use this path if you need non-default socket, cache, state, or collection settings.
+Use this path if you need non-default socket, cache, state, or local LanceDB table settings.
 
 1. Copy `examples/rarag.example.toml`.
 2. Override runtime paths and service sections.
@@ -118,13 +118,13 @@ rarag status --config /path/to/rarag.toml --worktree "$PWD" --json
 
 ## Runtime Dependencies
 
-### Qdrant
+### LanceDB
 
-`rarag` runtime retrieval expects a reachable Qdrant endpoint unless daemon test-memory mode is enabled.
+`rarag` runtime retrieval uses an in-process local LanceDB store rooted at `lancedb.db_root`.
 
-Use the canonical Qdrant guide:
+Use the canonical LanceDB runtime guide:
 
-- `docs/ops/qdrant-runtime.md`
+- `docs/ops/lancedb-runtime.md`
 
 ### Embeddings Provider
 
@@ -156,7 +156,7 @@ For scripts and automation, prefer `--json` where available.
 - empty retrieval output:
   - check indexing status and worktree/snapshot arguments
 - live semantic retrieval missing:
-  - verify Qdrant reachability and embeddings credentials
+  - verify local `lancedb.db_root` writability and embeddings credentials
 
 ## Next Reading
 

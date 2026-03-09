@@ -98,12 +98,15 @@ fn apply_overrides(config: &mut AppConfig, overrides: PartialAppConfig) {
         config.tantivy.index_root = index_root;
     }
 
-    if let Some(qdrant) = overrides.qdrant {
-        if let Some(endpoint) = qdrant.endpoint {
-            config.qdrant.endpoint = endpoint;
+    if let Some(lancedb) = overrides.lancedb {
+        if let Some(db_root) = lancedb.db_root {
+            config.lancedb.db_root = db_root;
         }
-        if let Some(collection) = qdrant.collection {
-            config.qdrant.collection = collection;
+        if let Some(table) = lancedb.table {
+            config.lancedb.table = table;
+        }
+        if let Some(distance_metric) = lancedb.distance_metric {
+            config.lancedb.distance_metric = distance_metric;
         }
     }
 
@@ -303,7 +306,7 @@ struct PartialAppConfig {
     runtime: Option<PartialRuntimePaths>,
     turso: Option<PartialTursoConfig>,
     tantivy: Option<PartialTantivyConfig>,
-    qdrant: Option<PartialQdrantConfig>,
+    lancedb: Option<PartialLanceDbConfig>,
     embeddings: Option<PartialEmbeddingProviderConfig>,
     retrieval: Option<PartialRetrievalConfig>,
     observability: Option<PartialObservabilityConfig>,
@@ -331,9 +334,10 @@ struct PartialTantivyConfig {
 }
 
 #[derive(Debug, Deserialize, Default)]
-struct PartialQdrantConfig {
-    endpoint: Option<String>,
-    collection: Option<String>,
+struct PartialLanceDbConfig {
+    db_root: Option<String>,
+    table: Option<String>,
+    distance_metric: Option<crate::config::VectorDistanceMetric>,
 }
 
 #[derive(Debug, Deserialize, Default)]

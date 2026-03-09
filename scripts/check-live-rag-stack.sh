@@ -7,7 +7,7 @@ if [[ ! -d "$workspace_root" ]]; then
   workspace_root="$root_dir"
 fi
 
-required_vars=(OPENAI_API_KEY RARAG_LIVE_QDRANT_ENDPOINT)
+required_vars=(OPENAI_API_KEY)
 for var_name in "${required_vars[@]}"; do
   if [[ -z "${!var_name:-}" ]]; then
     echo "missing required environment variable: $var_name" >&2
@@ -17,7 +17,7 @@ done
 
 openai_base_url=${OPENAI_BASE_URL:-https://api.openai.com/v1}
 openai_model=${RARAG_LIVE_OPENAI_MODEL:-text-embedding-3-small}
-qdrant_collection=${RARAG_LIVE_QDRANT_COLLECTION:-rarag_live_chunks}
+lancedb_table=${RARAG_LIVE_LANCEDB_TABLE:-rarag_live_chunks}
 fixture_root="$workspace_root/tests/fixtures/mini_repo"
 worktree_root=${RARAG_LIVE_WORKTREE_ROOT:-/repo/.worktrees/live-premerge}
 git_sha=${RARAG_LIVE_GIT_SHA:-live-premerge}
@@ -28,11 +28,29 @@ cache_dir=$(mktemp -d)
 config_path="$runtime_dir/rarag.toml"
 daemon_socket="$runtime_dir/raragd.sock"
 mcp_socket="$runtime_dir/rarag-mcp.sock"
+lancedb_root="$state_dir/lancedb-live"
+
+wait_for_exit() {
+  local pid="$1"
+  local timeout_seconds="${2:-10}"
+  local ticks=$((timeout_seconds * 20))
+  local i
+  for ((i = 0; i < ticks; i++)); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      return 0
+    fi
+    sleep 0.05
+  done
+  return 1
+}
 
 cleanup() {
   status=$?
   if [[ -n "${mcp_pid:-}" ]] && kill -0 "$mcp_pid" 2>/dev/null; then
     kill "$mcp_pid" 2>/dev/null || true
+    if ! wait_for_exit "$mcp_pid" 5; then
+      kill -9 "$mcp_pid" 2>/dev/null || true
+    fi
     wait "$mcp_pid" 2>/dev/null || true
   fi
   if [[ -n "${daemon_pid:-}" ]] && kill -0 "$daemon_pid" 2>/dev/null; then
@@ -46,6 +64,12 @@ while sock.recv(65536):
     pass
 sock.close()
 PY
+    if ! wait_for_exit "$daemon_pid" 10; then
+      kill "$daemon_pid" 2>/dev/null || true
+      if ! wait_for_exit "$daemon_pid" 5; then
+        kill -9 "$daemon_pid" 2>/dev/null || true
+      fi
+    fi
     wait "$daemon_pid" 2>/dev/null || true
   fi
   rm -rf "$runtime_dir" "$state_dir" "$cache_dir"
@@ -59,9 +83,10 @@ socket_path = "$daemon_socket"
 state_root = "$state_dir"
 cache_root = "$cache_dir"
 
-[qdrant]
-endpoint = "$RARAG_LIVE_QDRANT_ENDPOINT"
-collection = "$qdrant_collection"
+[lancedb]
+db_root = "$lancedb_root"
+table = "$lancedb_table"
+distance_metric = "cosine"
 
 [embeddings]
 base_url = "$openai_base_url"
