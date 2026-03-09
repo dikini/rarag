@@ -19,6 +19,12 @@ Start here:
 
 - `docs/ops/quickstart.md`
 
+The quickstart covers:
+
+- starting in one project
+- working across two or more projects
+- working with git worktrees
+
 Fast path from repo checkout:
 
 ```bash

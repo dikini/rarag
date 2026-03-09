@@ -10,6 +10,7 @@ The format is based on Common Changelog:
 ### Added
 
 - Added `docs/ops/quickstart.md` as a terse user/operator onboarding path with explicit install, run, validation, and Codex MCP handoff steps.
+- Added onboarding guidance for single-project use, multi-project concurrency, and git worktree usage in `docs/ops/quickstart.md`.
 - Added `rarag-mcp serve-stdio` with MCP `Content-Length` stdio framing so harnesses like Codex can run `rarag-mcp` as a stdio MCP server while still routing tool calls through the daemon socket.
 - Added repository-level `nextest` configuration to cap concurrent test execution at 4 workers to reduce memory pressure during test runs.
 - Added a `rarag service` porcelain for user-systemd operations with `install`, `start`, `stop`, `restart`, and daemon-HUP `reload`, including managed-unit safeguards and dry-run support.
