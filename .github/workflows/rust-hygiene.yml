@@ -37,7 +37,7 @@ jobs:
         uses: taiki-e/install-action@cargo-udeps
 
       - name: Install cargo-msrv
-        uses: taiki-e/install-action@cargo-msrv
+        run: cargo install --locked cargo-msrv
 
       - name: Install cargo-semver-checks
         uses: taiki-e/install-action@cargo-semver-checks

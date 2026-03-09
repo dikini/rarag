@@ -72,6 +72,7 @@ content_sha() {
 scripts/doc-lint.sh --changed --strict-new
 scripts/check-doc-terms.sh --changed
 scripts/check-workflows.sh --warn-missing
+scripts/check-references.sh --changed
 scripts/check-shell-quality.sh --changed --warn-missing
 scripts/check-tasks-registry.sh
 scripts/check-tasks-sync.sh --changed

@@ -7,7 +7,8 @@ cd "$ROOT"
 strict_mode=false
 check_target="all"
 baseline_ref="origin/main"
-semver_manifest="${RUST_HYGIENE_SEMVER_MANIFEST:-}"
+semver_manifest="${RUST_HYGIENE_SEMVER_MANIFEST:-crates/rarag-core/Cargo.toml}"
+msrv_version="${RUST_HYGIENE_MSRV:-1.93}"
 
 usage() {
   cat <<'USAGE'
@@ -97,7 +98,7 @@ run_msrv() {
     warn_or_fail "cargo-msrv missing (cargo install --locked cargo-msrv)"
     return 0
   fi
-  run_with_mode "cargo msrv verify" cargo msrv verify -- cargo check --workspace --all-targets
+  run_with_mode "cargo msrv verify" cargo msrv verify --rust-version "$msrv_version" -- cargo check --workspace --all-targets
 }
 
 run_semver() {

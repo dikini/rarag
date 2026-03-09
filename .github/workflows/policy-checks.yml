@@ -102,3 +102,6 @@ jobs:
 
       - name: Enforce task registry sync in range
         run: scripts/check-tasks-sync.sh --range "${{ steps.range.outputs.range }}"
+
+      - name: Validate external references in range
+        run: scripts/check-references.sh --range "${{ steps.range.outputs.range }}"
