@@ -76,6 +76,7 @@ The format is based on Common Changelog:
 - Fixed `scripts/check-live-rag-stack.sh` cleanup to use bounded waits with TERM/KILL fallback so daemon shutdown does not hang after successful live-check output.
 - Fixed dependency license policy for the Lance/LanceDB stack by explicitly allowing additional transitive OSS license IDs (`BSD-2-Clause`, `0BSD`, `BSL-1.0`, `CC0-1.0`, `MPL-2.0`) required by current graph resolution.
 - Fixed `policy-checks` CI reliability by installing `protobuf-compiler` (`protoc`) on the runner so LanceDB/Lance build scripts can compile during workspace test steps.
+- Changed `policy-checks` CI to use `sccache` plus Rust dependency/build caching and prebuilt `cargo-deny`/`cargo-audit` installs, reducing redundant compile time on repeated runs.
 
 - Excluded local `target/` build artifacts from `scripts/init-from-backbone.sh` copies so starter repository initialization stays deterministic and does not pull developer build output into generated repos.
 - Fixed worktree-root snapshot resolution to select the latest snapshot instead of failing after repeated indexing, switched the operational vector store to endpoint-backed Qdrant with an explicit test-only in-memory fallback, and hardened Unix-socket cleanup to refuse non-socket paths.
