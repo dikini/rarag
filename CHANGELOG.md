@@ -9,6 +9,7 @@ The format is based on Common Changelog:
 
 ### Added
 
+- Added `docs/ops/quickstart.md` as a terse user/operator onboarding path with explicit install, run, validation, and Codex MCP handoff steps.
 - Added `rarag-mcp serve-stdio` with MCP `Content-Length` stdio framing so harnesses like Codex can run `rarag-mcp` as a stdio MCP server while still routing tool calls through the daemon socket.
 - Added repository-level `nextest` configuration to cap concurrent test execution at 4 workers to reduce memory pressure during test runs.
 - Added a `rarag service` porcelain for user-systemd operations with `install`, `start`, `stop`, `restart`, and daemon-HUP `reload`, including managed-unit safeguards and dry-run support.
@@ -51,6 +52,7 @@ The format is based on Common Changelog:
 
 ### Changed
 
+- Changed onboarding docs to optimize readability by routing README and installation flows through a single quickstart-first user/ops path.
 - Added a README dependency note explaining that `CDLA-Permissive-2.0` appears via `webpki-roots` pulled by `reqwest`/`rustls` TLS support.
 - Changed `README.md` into a concise documentation hub that routes users to install, ops, and integration guides instead of duplicating detailed operator steps inline.
 - Changed service-porcelain docs/spec to explicitly document current hardcoded unit path assumptions and the tracked follow-up contract for resolved binary/config unit generation.

@@ -13,38 +13,38 @@ Stability note:
 - Behavior, APIs, and persisted formats may change until the project is stable.
 - Before first release, backward compatibility is out of scope unless a spec or plan explicitly requires it.
 
-## Quick Start
+## User/Ops Quickstart
+
+Start here:
+
+- `docs/ops/quickstart.md`
+
+Fast path from repo checkout:
 
 ```bash
-scripts/bootstrap-dev.sh --check
-cargo build --workspace
-scripts/check-tests.sh
+mkdir -p ~/.config/rarag
+cp examples/rarag.example.toml ~/.config/rarag/rarag.toml
+cargo install --path crates/rarag --path crates/raragd --path crates/rarag-mcp --locked
+raragd serve
 ```
 
-Minimal local run:
+In a second terminal:
 
 ```bash
-cp examples/rarag.example.toml ~/.config/rarag/rarag.toml
-raragd serve
 rarag index build --worktree "$PWD"
 rarag query --worktree "$PWD" --mode understand-symbol --text "snapshot store"
+rarag-mcp --list-tools
 ```
 
-User-service porcelain:
+Codex MCP setup:
 
-```bash
-rarag service install
-rarag service restart --service all
-rarag service reload
-```
+- `docs/integrations/codex.md`
 
-## Start Here
+Operations:
 
-- Install and local setup: `INSTALL.md`
-- User systemd services: `docs/ops/systemd-user.md`
-- LanceDB runtime operations: `docs/ops/lancedb-runtime.md`
-- MCP client integrations: `docs/integrations/README.md`
-- Canonical behavior spec: `docs/specs/repository-rag-architecture.md`
+- `INSTALL.md`
+- `docs/ops/systemd-user.md`
+- `docs/ops/lancedb-runtime.md`
 
 ## Repository Layout
 
@@ -56,7 +56,7 @@ rarag service reload
 - `examples/`: non-secret config examples
 - `scripts/`: bootstrap and verification helpers
 
-## Development Workflow
+## Contributor Workflow
 
 1. Update/create spec in `docs/specs/` for non-trivial behavior changes.
 2. Create/update an implementation plan in `docs/plans/`.

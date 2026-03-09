@@ -2,6 +2,10 @@
 
 This guide is for local user installs of `rarag` (daemon, CLI, MCP server) with a practical Debian/Ubuntu-first workflow.
 
+If you want the shortest working path first, use:
+
+- `docs/ops/quickstart.md`
+
 ## Platform Matrix
 
 - `Ubuntu/Debian`: tested and documented in detail
@@ -17,7 +21,7 @@ This guide is for local user installs of `rarag` (daemon, CLI, MCP server) with 
 
 All three binaries read shared config from `rarag.toml`.
 
-## Path A: Quick Local Run (No Persistent Services)
+## Path A: Local Session (No Persistent Services)
 
 Use this path for local experimentation and development.
 
@@ -71,14 +75,16 @@ raragd serve
 Terminal 2:
 
 ```bash
-rarag-mcp serve
+rarag-mcp serve-stdio --config ~/.config/rarag/rarag.toml
 ```
 
 ### 5. Smoke Test
 
 ```bash
+rarag index build --worktree "$PWD"
+rarag query --worktree "$PWD" --mode understand-symbol --text "snapshot store"
 rarag status --worktree "$PWD" --json
-rarag daemon reload --json
+rarag-mcp --list-tools
 ```
 
 ## Path B: Persistent User Services (`systemd --user`)
@@ -96,7 +102,7 @@ rarag service install
 4. Verify services:
 
 ```bash
-rarag service start --service all --dry-run-request
+rarag service restart --service all
 systemctl --user status raragd.service
 systemctl --user status rarag-mcp.service
 rarag status --worktree "$PWD" --json
@@ -160,6 +166,7 @@ For scripts and automation, prefer `--json` where available.
 
 ## Next Reading
 
+- User/ops quickstart: `docs/ops/quickstart.md`
 - User service operations: `docs/ops/systemd-user.md`
 - MCP integration docs: `docs/integrations/README.md`
 - Architecture and contracts: `docs/specs/repository-rag-architecture.md`

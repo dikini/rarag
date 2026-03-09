@@ -2,6 +2,10 @@
 
 This section documents how to connect agent harnesses to the local `rarag-mcp` server.
 
+If you are using Codex, start here:
+
+- `docs/integrations/codex.md`
+
 ## Support Tiers
 
 - `Tier 1`: actively tested on Debian/Ubuntu and maintained as canonical integration docs
@@ -18,7 +22,7 @@ Current matrix:
 ## Integration Prerequisites
 
 - `raragd` is running
-- `rarag-mcp` is running
+- `rarag-mcp` is runnable (stdio or socket mode)
 - socket path in `rarag.toml` is known (default from config)
 
 Quick checks:
