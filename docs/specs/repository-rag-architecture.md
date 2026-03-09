@@ -55,7 +55,7 @@ Related Task Registry ID: `2026-03-08-local-ipc-hardening`
 ### In Scope
 
 - Rust implementation targeting toolchain `1.93+` and edition `2024`.
-- Hybrid retrieval using `ra_ap_syntax` chunk spans, `rust-analyzer` semantic enrichment when available, BM25 via Tantivy, metadata in Turso, and vector storage in Qdrant.
+- Hybrid retrieval using `ra_ap_syntax` chunk spans, `rust-analyzer` semantic enrichment when available, BM25 via Tantivy, metadata in Turso, and vector storage in LanceDB.
 - Snapshot-aware indexing keyed by repository, git worktree, commit SHA, target triple, feature set, and cfg profile.
 - Local developer use through a CLI and a local MCP server over Unix sockets.
 - Shared TOML configuration for `rarag`, `raragd`, and `rarag-mcp`, with code defaults that remain overridable.
@@ -90,7 +90,7 @@ Related Task Registry ID: `2026-03-08-local-ipc-hardening`
 The architecture consists of four Rust crates in one workspace:
 
 - `rarag-core`: shared library for config, snapshot model, chunking, storage adapters, retrieval, reranking, and neighborhood assembly.
-- `raragd`: local daemon process that owns Tantivy indexes, Turso connections, Qdrant clients, file watching, and the internal Unix-socket API.
+- `raragd`: local daemon process that owns Tantivy indexes, Turso connections, LanceDB handles, file watching, and the internal Unix-socket API.
 - `rarag`: CLI wrapper around daemon requests, with stable shell and JSON output modes.
 - `rarag-mcp`: local MCP server over Unix sockets that exposes repository-assistance tools backed by the daemon.
 
@@ -118,7 +118,7 @@ The architecture consists of four Rust crates in one workspace:
 - Turso stores snapshot metadata, chunk metadata, graph edges, indexing runs, query audit rows, and provider configuration metadata.
 - Turso may also store retrieval observation rows and candidate-feature rows when observability is enabled.
 - Tantivy stores lexical fields for chunk text, symbol path, symbol name, docs text, extracted signature text, file path, chunk kind, test/example markers, and repository-state hints.
-- Qdrant stores chunk vectors and optional reranking helper payloads keyed by `chunk_id` and `snapshot_id`.
+- LanceDB stores chunk vectors and optional reranking helper payloads keyed by `chunk_id` and `snapshot_id`.
 - All three stores must use the same stable `chunk_id` and `snapshot_id` values.
 
 ### Embedding Provider Contract
@@ -164,7 +164,7 @@ Outputs:
 Retrieval order:
 
 1. resolve snapshot
-2. run hybrid candidate search via Tantivy and Qdrant
+2. run hybrid candidate search via Tantivy and LanceDB
 3. perform bounded graph expansion
 4. rerank with diff/worktree locality plus query-mode-specific signals
 5. assemble compact neighborhood
@@ -298,7 +298,7 @@ All paths must be overridable by config or CLI flags.
 - Valid daemon responses are not truncated or rejected by the daemon request-size ceiling.
 - Worktree selection is explicit; implicit fallback must only occur when exactly one worktree snapshot is available.
 - Structural indexing remains usable without semantic enrichment.
-- Tantivy, Turso, and Qdrant records remain referentially consistent by `chunk_id` and `snapshot_id`.
+- Tantivy, Turso, and LanceDB records remain referentially consistent by `chunk_id` and `snapshot_id`.
 - Tests and examples remain first-class retrieval candidates, not optional decorations.
 - Query neighborhoods stay bounded and mode-specific; retrieval must not degenerate into whole-file dumping.
 - The system surfaces evidence and uncertainty instead of hiding stale or missing semantic data.
@@ -428,7 +428,7 @@ Property-based (optional):
 
 **Postconditions**
 
-- Turso, Tantivy, and Qdrant adapters ingest and expose indexed chunks.
+- Turso, Tantivy, and LanceDB adapters ingest and expose indexed chunks.
 - A real embedding provider is used for chunk and query vectors.
 
 **Tests (must exist before implementation)**
@@ -585,7 +585,7 @@ Property-based (optional):
 - Embedding provider drift may change vector dimensions or ranking behavior across snapshots.
 - Worktree-local diffs may bias retrieval too strongly if reranking weights are not bounded.
 - Macro-heavy repositories may expose incomplete semantic edges in early versions.
-- Qdrant or embedding-provider outages may reduce retrieval quality; the system must still return lexical plus structural results with warnings.
+- LanceDB or embedding-provider outages may reduce retrieval quality; the system must still return lexical plus structural results with warnings.
 - Overly large neighborhoods can silently become prompt stuffing if size caps are not enforced and tested.
 
 ## Open Questions
@@ -598,7 +598,7 @@ Property-based (optional):
 
 - Turso Rust crate docs: <https://docs.rs/turso/latest/turso/>
 - Tantivy Rust crate docs: <https://docs.rs/tantivy/latest/tantivy/>
-- Qdrant Rust client docs: <https://docs.rs/qdrant-client/latest/qdrant_client/>
+- LanceDB Rust docs: <https://docs.rs/lancedb/latest/lancedb/>
 - `ra_ap_syntax` docs: <https://docs.rs/ra_ap_syntax/latest/ra_ap_syntax/>
 - `ra_ap_ide` docs: <https://docs.rs/ra_ap_ide/latest/ra_ap_ide/>
 - Vault note: `sharo/research/rust-code-rag-semantic-chunking.md`

@@ -10,7 +10,7 @@ use rarag_core::daemon::{
 use rarag_core::embeddings::{
     DeterministicEmbeddingProvider, EmbeddingProvider, OpenAiCompatibleEmbeddings,
 };
-use rarag_core::indexing::{ChunkIndexer, QdrantPointStore, TantivyChunkStore};
+use rarag_core::indexing::{ChunkIndexer, LanceDbPointStore, TantivyChunkStore};
 use rarag_core::metadata::SnapshotStore;
 use rarag_core::retrieval::{QueryMode, RepositoryRetriever};
 use rarag_core::unix_socket::{prepare_socket_path, remove_socket_if_present};
@@ -39,7 +39,7 @@ impl EmbeddingProvider for DaemonEmbeddingProvider {
 pub struct DaemonState {
     metadata: SnapshotStore,
     tantivy: TantivyChunkStore,
-    qdrant: QdrantPointStore,
+    lancedb: LanceDbPointStore,
     provider: DaemonEmbeddingProvider,
     active_config: AppConfig,
     config_source: Option<PathBuf>,
@@ -58,16 +58,16 @@ impl DaemonState {
         }
         let metadata = SnapshotStore::open_local(&metadata_path.display().to_string()).await?;
         let tantivy = TantivyChunkStore::open(Path::new(&config.tantivy.index_root))?;
-        let qdrant = if serve.memory_vector_store {
-            QdrantPointStore::new_in_memory(
+        let lancedb = if serve.memory_vector_store {
+            LanceDbPointStore::new_in_memory(
                 "memory://daemon-test",
-                &config.qdrant.collection,
+                &config.lancedb.table,
                 config.embeddings.dimensions,
             )
         } else {
-            QdrantPointStore::new(
-                &config.qdrant.endpoint,
-                &config.qdrant.collection,
+            LanceDbPointStore::new(
+                &config.lancedb.db_root,
+                &config.lancedb.table,
                 config.embeddings.dimensions,
             )?
         };
@@ -84,7 +84,7 @@ impl DaemonState {
         Ok(Self {
             metadata,
             tantivy,
-            qdrant,
+            lancedb,
             provider,
             active_config: config,
             config_source,
@@ -152,7 +152,7 @@ impl DaemonState {
         let snapshot = self.metadata.create_or_get_snapshot(snapshot).await?;
         let chunks = RustChunker::new(max_body_bytes).chunk_workspace(workspace_root)?;
         let indexer =
-            ChunkIndexer::new(&self.metadata, &self.tantivy, &self.qdrant, &self.provider);
+            ChunkIndexer::new(&self.metadata, &self.tantivy, &self.lancedb, &self.provider);
         let counts = indexer.reindex_snapshot(&snapshot.id, &chunks).await?;
         Ok(IndexResponse {
             snapshot_id: snapshot.id,
@@ -179,7 +179,7 @@ impl DaemonState {
         let retriever = RepositoryRetriever::new_with_settings(
             &self.metadata,
             &self.tantivy,
-            &self.qdrant,
+            &self.lancedb,
             &self.provider,
             &self.active_config.retrieval,
             &self.active_config.observability,

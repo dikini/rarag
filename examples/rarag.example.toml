@@ -10,9 +10,9 @@ auth_token_env = "TURSO_AUTH_TOKEN"
 [tantivy]
 index_root = "/home/user/.cache/rarag/tantivy"
 
-[qdrant]
-endpoint = "http://127.0.0.1:6334"
-collection = "rarag_chunks"
+[lancedb]
+db_root = "/home/user/.local/state/rarag/lancedb"
+table = "rarag_chunks"
 
 [embeddings]
 base_url = "https://api.openai.com/v1"

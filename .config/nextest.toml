@@ -1,2 +1,2 @@
 [profile.default]
-test-threads = 4
+test-threads = 1 

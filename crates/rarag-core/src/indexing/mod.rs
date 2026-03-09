@@ -1,4 +1,4 @@
-mod qdrant_store;
+mod lancedb_store;
 mod tantivy_store;
 
 use crate::chunking::Chunk;
@@ -6,8 +6,8 @@ use crate::embeddings::EmbeddingProvider;
 use crate::metadata::{IndexingRunRecord, SnapshotStore};
 use crate::semantic::SemanticEdge;
 
-pub use qdrant_store::QdrantPointStore;
-pub use qdrant_store::VectorSearchHit;
+pub use lancedb_store::LanceDbPointStore;
+pub use lancedb_store::VectorSearchHit;
 pub use tantivy_store::{IndexedDocument, TantivyChunkStore};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,7 +20,7 @@ pub struct ReindexCounts {
 pub struct ChunkIndexer<'a, P> {
     metadata: &'a SnapshotStore,
     tantivy: &'a TantivyChunkStore,
-    qdrant: &'a QdrantPointStore,
+    lancedb: &'a LanceDbPointStore,
     provider: &'a P,
 }
 
@@ -31,13 +31,13 @@ where
     pub fn new(
         metadata: &'a SnapshotStore,
         tantivy: &'a TantivyChunkStore,
-        qdrant: &'a QdrantPointStore,
+        lancedb: &'a LanceDbPointStore,
         provider: &'a P,
     ) -> Self {
         Self {
             metadata,
             tantivy,
-            qdrant,
+            lancedb,
             provider,
         }
     }
@@ -91,7 +91,7 @@ where
         let texts: Vec<String> = chunks.iter().map(|chunk| chunk.text.clone()).collect();
         let vectors = self.provider.embed_texts(&texts)?;
         let vector_points = self
-            .qdrant
+            .lancedb
             .replace_snapshot(snapshot_id, chunks, vectors)
             .await?;
         let metadata_rows = self.metadata.chunk_count(snapshot_id).await?;
@@ -107,7 +107,7 @@ where
         self.tantivy
     }
 
-    pub fn qdrant_store(&self) -> &QdrantPointStore {
-        self.qdrant
+    pub fn lancedb_store(&self) -> &LanceDbPointStore {
+        self.lancedb
     }
 }

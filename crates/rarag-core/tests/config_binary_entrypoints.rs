@@ -150,7 +150,7 @@ fn example_toml_matches_resolved_shape() {
     assert_eq!(config.embeddings.base_url, "https://api.openai.com/v1");
     assert_eq!(config.embeddings.endpoint_path, "/embeddings");
     assert_eq!(config.embeddings.model, "text-embedding-3-small");
-    assert_eq!(config.qdrant.collection, "rarag_chunks");
+    assert_eq!(config.lancedb.table, "rarag_chunks");
 }
 
 #[test]

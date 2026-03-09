@@ -13,7 +13,7 @@ pub struct AppConfig {
     pub runtime: RuntimePaths,
     pub turso: TursoConfig,
     pub tantivy: TantivyConfig,
-    pub qdrant: QdrantConfig,
+    pub lancedb: LanceDbConfig,
     pub embeddings: EmbeddingProviderConfig,
     #[serde(default)]
     pub retrieval: RetrievalConfig,
@@ -46,9 +46,9 @@ impl Default for AppConfig {
             tantivy: TantivyConfig {
                 index_root: format!("{cache_root}/rarag/tantivy"),
             },
-            qdrant: QdrantConfig {
-                endpoint: "http://127.0.0.1:6334".into(),
-                collection: "rarag_chunks".into(),
+            lancedb: LanceDbConfig {
+                db_root: format!("{state_root}/rarag/lancedb"),
+                table: "rarag_chunks".into(),
             },
             embeddings: EmbeddingProviderConfig {
                 base_url: "https://api.openai.com/v1".into(),
@@ -300,9 +300,9 @@ pub struct TantivyConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct QdrantConfig {
-    pub endpoint: String,
-    pub collection: String,
+pub struct LanceDbConfig {
+    pub db_root: String,
+    pub table: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

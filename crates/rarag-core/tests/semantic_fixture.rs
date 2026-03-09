@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use rarag_core::chunking::RustChunker;
 use rarag_core::embeddings::EmbeddingProvider;
-use rarag_core::indexing::{ChunkIndexer, QdrantPointStore, TantivyChunkStore};
+use rarag_core::indexing::{ChunkIndexer, LanceDbPointStore, TantivyChunkStore};
 use rarag_core::metadata::SnapshotStore;
 use rarag_core::retrieval::{QueryMode, RepositoryRetriever, RetrievalRequest};
 use rarag_core::semantic::{RustAnalyzerEnricher, SemanticEdgeKind};
@@ -47,7 +47,7 @@ async fn build_retriever() -> (
     PathBuf,
     SnapshotStore,
     TantivyChunkStore,
-    QdrantPointStore,
+    LanceDbPointStore,
     StaticEmbeddingProvider,
 ) {
     let dir = tempdir().expect("tempdir");
@@ -68,9 +68,9 @@ async fn build_retriever() -> (
         .await
         .expect("create snapshot");
     let tantivy = TantivyChunkStore::open(&tantivy_dir).expect("open tantivy");
-    let qdrant = QdrantPointStore::new_in_memory("memory://tests", "rarag_chunks", 4);
+    let lancedb = LanceDbPointStore::new_in_memory("memory://tests", "rarag_chunks", 4);
     let provider = StaticEmbeddingProvider { dimensions: 4 };
-    let indexer = ChunkIndexer::new(&metadata, &tantivy, &qdrant, &provider);
+    let indexer = ChunkIndexer::new(&metadata, &tantivy, &lancedb, &provider);
     let chunks = RustChunker::new(80)
         .chunk_workspace(&fixture_root())
         .expect("chunk workspace");
@@ -89,7 +89,7 @@ async fn build_retriever() -> (
         fixture_root(),
         metadata,
         tantivy,
-        qdrant,
+        lancedb,
         provider,
     )
 }
@@ -154,9 +154,9 @@ fn enrichment_never_rewrites_chunk_source_spans() {
 #[test]
 fn bounded_refactor_uses_impl_and_test_edges() {
     runtime().block_on(async {
-        let (snapshot_id, _dir, fixture_root, metadata, tantivy, qdrant, provider) =
+        let (snapshot_id, _dir, fixture_root, metadata, tantivy, lancedb, provider) =
             build_retriever().await;
-        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &qdrant, &provider);
+        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &lancedb, &provider);
         let changed = WorktreeChanges::from_paths([fixture_root.join("src/lib.rs")]);
         let response = retriever
             .retrieve(

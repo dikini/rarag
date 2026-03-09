@@ -1,6 +1,6 @@
 use rarag_core::config::{
     AppConfig, CliConfig, DaemonConfig, EmbeddingProviderConfig, McpConfig,
-    NeighborhoodWeightsConfig, ObservabilityConfig, ObservabilityVerbosity, QdrantConfig,
+    NeighborhoodWeightsConfig, ObservabilityConfig, ObservabilityVerbosity, LanceDbConfig,
     RerankWeightsConfig, RetrievalConfig, RuntimePaths, TantivyConfig, TursoConfig,
 };
 use rarag_core::snapshot::SnapshotKey;
@@ -19,9 +19,9 @@ fn sample_config() -> AppConfig {
         tantivy: TantivyConfig {
             index_root: "/tmp/rarag/index".into(),
         },
-        qdrant: QdrantConfig {
-            endpoint: "http://127.0.0.1:6334".into(),
-            collection: "rarag_chunks".into(),
+        lancedb: LanceDbConfig {
+            db_root: "/tmp/rarag/lancedb".into(),
+            table: "rarag_chunks".into(),
         },
         embeddings: EmbeddingProviderConfig {
             base_url: "https://api.openai.com/v1".into(),
@@ -86,9 +86,9 @@ fn binary_sections_are_optional() {
         "tantivy": {
             "index_root": "/tmp/rarag/index"
         },
-        "qdrant": {
-            "endpoint": "http://127.0.0.1:6334",
-            "collection": "rarag_chunks"
+        "lancedb": {
+            "db_root": "/tmp/rarag/lancedb",
+            "table": "rarag_chunks"
         },
         "embeddings": {
             "base_url": "https://api.openai.com/v1",
@@ -132,9 +132,9 @@ fn parses_rerank_and_observability_sections() {
         "tantivy": {
             "index_root": "/tmp/rarag/index"
         },
-        "qdrant": {
-            "endpoint": "http://127.0.0.1:6334",
-            "collection": "rarag_chunks"
+        "lancedb": {
+            "db_root": "/tmp/rarag/lancedb",
+            "table": "rarag_chunks"
         },
         "embeddings": {
             "base_url": "https://api.openai.com/v1",

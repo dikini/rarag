@@ -64,6 +64,7 @@ The format is based on Common Changelog:
 - Changed the runtime query contract to drop workflow-phase inputs from `rarag-core`, `rarag`, `raragd`, and `rarag-mcp`, and renamed lexical/storage hint fields from `workflow_hints` to `repository_state_hints`.
 - Changed project policy to treat backward compatibility as out of scope until the first release unless a spec or plan explicitly requires it.
 - Changed retrieval scoring to read config-backed rerank and neighborhood weights while preserving the previous defaults when no overrides are set.
+- Changed the canonical repository RAG architecture and active implementation plan to migrate vector storage from endpoint-backed Qdrant to in-process local LanceDB while keeping snapshot-scoped retrieval and rerank evidence contracts.
 
 ### Fixed
 

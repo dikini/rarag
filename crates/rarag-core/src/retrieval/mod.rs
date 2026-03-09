@@ -5,7 +5,7 @@ mod rerank;
 use crate::config::RetrievalConfig;
 use crate::config::{ObservabilityConfig, ObservabilityVerbosity};
 use crate::embeddings::EmbeddingProvider;
-use crate::indexing::{QdrantPointStore, TantivyChunkStore};
+use crate::indexing::{LanceDbPointStore, TantivyChunkStore};
 use crate::metadata::{
     CandidateObservationRecord, QueryAuditRecord, QueryObservationRecord, SnapshotStore,
 };
@@ -16,7 +16,7 @@ use rerank::{Candidate, RankedCandidate, rerank_candidates};
 pub struct RepositoryRetriever<'a, P> {
     metadata: &'a SnapshotStore,
     tantivy: &'a TantivyChunkStore,
-    qdrant: &'a QdrantPointStore,
+    lancedb: &'a LanceDbPointStore,
     provider: &'a P,
     retrieval: RetrievalConfig,
     observability: ObservabilityConfig,
@@ -29,13 +29,13 @@ where
     pub fn new(
         metadata: &'a SnapshotStore,
         tantivy: &'a TantivyChunkStore,
-        qdrant: &'a QdrantPointStore,
+        lancedb: &'a LanceDbPointStore,
         provider: &'a P,
     ) -> Self {
         Self::new_with_config(
             metadata,
             tantivy,
-            qdrant,
+            lancedb,
             provider,
             &RetrievalConfig::default(),
         )
@@ -44,7 +44,7 @@ where
     pub fn new_with_settings(
         metadata: &'a SnapshotStore,
         tantivy: &'a TantivyChunkStore,
-        qdrant: &'a QdrantPointStore,
+        lancedb: &'a LanceDbPointStore,
         provider: &'a P,
         retrieval: &RetrievalConfig,
         observability: &ObservabilityConfig,
@@ -52,7 +52,7 @@ where
         Self {
             metadata,
             tantivy,
-            qdrant,
+            lancedb,
             provider,
             retrieval: retrieval.clone(),
             observability: observability.clone(),
@@ -62,14 +62,14 @@ where
     pub fn new_with_config(
         metadata: &'a SnapshotStore,
         tantivy: &'a TantivyChunkStore,
-        qdrant: &'a QdrantPointStore,
+        lancedb: &'a LanceDbPointStore,
         provider: &'a P,
         retrieval: &RetrievalConfig,
     ) -> Self {
         Self::new_with_settings(
             metadata,
             tantivy,
-            qdrant,
+            lancedb,
             provider,
             retrieval,
             &ObservabilityConfig::default(),
@@ -220,7 +220,7 @@ where
             .into_iter()
             .next()
             .ok_or_else(|| "embedding provider returned no query vector".to_string())?;
-        self.qdrant
+        self.lancedb
             .search_snapshot(
                 &request.snapshot_id,
                 &query_vector,
