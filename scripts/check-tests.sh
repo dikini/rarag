@@ -27,8 +27,10 @@ else
 fi
 
 if cargo nextest --version >/dev/null 2>&1; then
-  echo "check-tests: running cargo nextest run ${args[*]}"
-  cargo nextest run "${args[@]}"
+  nextest_build_jobs="${RARAG_NEXTEST_BUILD_JOBS:-2}"
+  nextest_profile="${RARAG_NEXTEST_PROFILE:-default}"
+  echo "check-tests: running cargo nextest run --profile ${nextest_profile} -j ${nextest_build_jobs} ${args[*]}"
+  cargo nextest run --profile "${nextest_profile}" -j "${nextest_build_jobs}" "${args[@]}"
 else
   echo "check-tests: running cargo test ${args[*]}"
   cargo test "${args[@]}"

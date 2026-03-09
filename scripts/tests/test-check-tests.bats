@@ -24,7 +24,7 @@ EOF
 
   run env PATH="$TMP_DIR/bin:$PATH" TMP_DIR="$TMP_DIR" "$ROOT/scripts/check-tests.sh" --workspace
   [ "$status" -eq 0 ]
-  run rg '^nextest run --workspace$' "$TMP_DIR/calls.log"
+  run rg '^nextest run --profile default -j 2 --workspace$' "$TMP_DIR/calls.log"
   [ "$status" -eq 0 ]
 }
 
@@ -46,4 +46,3 @@ EOF
   run rg '^test --workspace$' "$TMP_DIR/calls.log"
   [ "$status" -eq 0 ]
 }
-

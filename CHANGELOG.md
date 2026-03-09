@@ -18,6 +18,7 @@ The format is based on Common Changelog:
 - Added follow-up plan `docs/plans/2026-03-08-service-porcelain-followup-implementation-plan.md` for service-porcelain path-resolution fixes.
 - Added configurable heuristic rerank and neighborhood weights in shared TOML config, plus opt-in retrieval observation persistence for offline eval generation.
 - Added LanceDB ANN drift integration coverage that compares indexed (`nprobes`/`refine_factor`) versus flat-baseline score and top-k behavior for cosine, L2, and dot metrics.
+- Added low-memory nextest tuning by explicitly setting single-test execution in `.config/nextest.toml` and reducing Cargo build parallelism in `scripts/check-tests.sh` (configurable via `RARAG_NEXTEST_BUILD_JOBS` and `RARAG_NEXTEST_PROFILE`).
 - Added daemon config reload controls through `SIGHUP`, `rarag daemon reload`, and MCP tool `rag_reload_config`.
 - Added a repository RAG architecture spec, design note, and phased implementation plan for a Rust-first, worktree-aware hybrid retrieval system using Turso, Tantivy, Qdrant, `ra_ap_syntax`, and `rust-analyzer`.
 - Added the Phase 1 Rust workspace skeleton with `rarag-core`, `raragd`, `rarag`, and `rarag-mcp`, plus bootstrap tests and toolchain configuration.
