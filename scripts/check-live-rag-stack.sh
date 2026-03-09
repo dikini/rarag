@@ -7,7 +7,7 @@ if [[ ! -d "$workspace_root" ]]; then
   workspace_root="$root_dir"
 fi
 
-required_vars=(OPENAI_API_KEY RARAG_LIVE_QDRANT_ENDPOINT)
+required_vars=(OPENAI_API_KEY)
 for var_name in "${required_vars[@]}"; do
   if [[ -z "${!var_name:-}" ]]; then
     echo "missing required environment variable: $var_name" >&2
@@ -17,7 +17,7 @@ done
 
 openai_base_url=${OPENAI_BASE_URL:-https://api.openai.com/v1}
 openai_model=${RARAG_LIVE_OPENAI_MODEL:-text-embedding-3-small}
-qdrant_collection=${RARAG_LIVE_QDRANT_COLLECTION:-rarag_live_chunks}
+lancedb_table=${RARAG_LIVE_LANCEDB_TABLE:-rarag_live_chunks}
 fixture_root="$workspace_root/tests/fixtures/mini_repo"
 worktree_root=${RARAG_LIVE_WORKTREE_ROOT:-/repo/.worktrees/live-premerge}
 git_sha=${RARAG_LIVE_GIT_SHA:-live-premerge}
@@ -28,6 +28,7 @@ cache_dir=$(mktemp -d)
 config_path="$runtime_dir/rarag.toml"
 daemon_socket="$runtime_dir/raragd.sock"
 mcp_socket="$runtime_dir/rarag-mcp.sock"
+lancedb_root="$state_dir/lancedb-live"
 
 cleanup() {
   status=$?
@@ -59,9 +60,10 @@ socket_path = "$daemon_socket"
 state_root = "$state_dir"
 cache_root = "$cache_dir"
 
-[qdrant]
-endpoint = "$RARAG_LIVE_QDRANT_ENDPOINT"
-collection = "$qdrant_collection"
+[lancedb]
+db_root = "$lancedb_root"
+table = "$lancedb_table"
+distance_metric = "cosine"
 
 [embeddings]
 base_url = "$openai_base_url"
