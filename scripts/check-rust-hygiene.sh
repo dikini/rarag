@@ -97,7 +97,7 @@ run_msrv() {
     warn_or_fail "cargo-msrv missing (cargo install --locked cargo-msrv)"
     return 0
   fi
-  run_with_mode "cargo msrv verify" cargo msrv verify --workspace -- cargo check --workspace --all-targets
+  run_with_mode "cargo msrv verify" cargo msrv verify -- cargo check --workspace --all-targets
 }
 
 run_semver() {

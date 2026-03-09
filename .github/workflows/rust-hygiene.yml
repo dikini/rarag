@@ -8,6 +8,10 @@ on:
 jobs:
   hygiene:
     runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_CACHE_SIZE: 2G
 
     steps:
       - name: Checkout
@@ -15,11 +19,28 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Restore Rust caches
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install runner build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
       - name: Install nightly toolchain for cargo-udeps
         run: rustup toolchain install nightly --profile minimal
 
-      - name: Install cargo hygiene tools
-        run: cargo install --locked cargo-udeps cargo-msrv cargo-semver-checks
+      - name: Install cargo-udeps
+        uses: taiki-e/install-action@cargo-udeps
+
+      - name: Install cargo-msrv
+        uses: taiki-e/install-action@cargo-msrv
+
+      - name: Install cargo-semver-checks
+        uses: taiki-e/install-action@cargo-semver-checks
 
       - name: Run strict rust hygiene checks
         run: scripts/check-rust-hygiene.sh --strict --check all --baseline-ref origin/main
