@@ -1,5 +1,7 @@
 # rarag
 
+[![policy-checks](https://github.com/dikini/rarag/actions/workflows/policy-checks.yml/badge.svg)](https://github.com/dikini/rarag/actions/workflows/policy-checks.yml)
+
 Repository-assistance RAG for local Rust codebases. `rarag` provides a daemon, CLI, and MCP server for symbol-centered context retrieval, examples, and bounded blast-radius queries.
 
 ## Status
