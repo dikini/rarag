@@ -10,9 +10,9 @@ use crate::indexing::{LanceDbPointStore, TantivyChunkStore};
 use crate::metadata::{
     CandidateObservationRecord, QueryAuditRecord, QueryObservationRecord, SnapshotStore,
 };
+pub use eval::{EvalTaskFixture, load_eval_task_fixtures};
 use neighborhood::assemble_neighborhood;
 pub use query::{QueryMode, RetrievalRequest, RetrievalResponse, RetrievedChunk};
-pub use eval::{EvalTaskFixture, load_eval_task_fixtures};
 use rerank::{Candidate, RankedCandidate, rerank_candidates};
 
 pub struct RepositoryRetriever<'a, P> {
@@ -185,7 +185,9 @@ where
         if request.include_history {
             let history = self.history_candidates(&request).await?;
             if history.is_empty() {
-                warnings.push("history selector requested but no history candidates were found".to_string());
+                warnings.push(
+                    "history selector requested but no history candidates were found".to_string(),
+                );
             }
             candidates.extend(history);
         }
@@ -265,12 +267,21 @@ where
             .await
     }
 
-    async fn history_candidates(&self, request: &RetrievalRequest) -> Result<Vec<Candidate>, String> {
-        let mut nodes = self.metadata.load_history_nodes(&request.snapshot_id).await?;
+    async fn history_candidates(
+        &self,
+        request: &RetrievalRequest,
+    ) -> Result<Vec<Candidate>, String> {
+        let mut nodes = self
+            .metadata
+            .load_history_nodes(&request.snapshot_id)
+            .await?;
         if nodes.is_empty() {
             return Ok(Vec::new());
         }
-        let edges = self.metadata.load_lineage_edges(&request.snapshot_id).await?;
+        let edges = self
+            .metadata
+            .load_lineage_edges(&request.snapshot_id)
+            .await?;
         let cap = request.history_max_nodes.unwrap_or(8).max(1);
         if nodes.len() > cap {
             nodes = nodes.split_off(nodes.len() - cap);
@@ -291,10 +302,9 @@ where
                     .filter(|term| summary_lower.contains(term.as_str()))
                     .count() as f32;
                 let mut evidence = vec!["history_node".to_string()];
-                if edges
-                    .iter()
-                    .any(|edge| edge.from_node_id == node.node_id || edge.to_node_id == node.node_id)
-                {
+                if edges.iter().any(|edge| {
+                    edge.from_node_id == node.node_id || edge.to_node_id == node.node_id
+                }) {
                     evidence.push("lineage_edge".to_string());
                 }
                 Candidate {
@@ -323,7 +333,10 @@ where
     }
 }
 
-fn backfill_document_rank_weights(chunks: &mut [crate::metadata::ChunkRecord], rules: &[DocumentSourceRule]) {
+fn backfill_document_rank_weights(
+    chunks: &mut [crate::metadata::ChunkRecord],
+    rules: &[DocumentSourceRule],
+) {
     for chunk in chunks {
         if !chunk
             .retrieval_markers
@@ -342,7 +355,8 @@ fn backfill_document_rank_weights(chunks: &mut [crate::metadata::ChunkRecord], r
         let Some(weight) = classify_doc_weight_from_path(&chunk.file_path, rules) else {
             continue;
         };
-        chunk.retrieval_markers
+        chunk
+            .retrieval_markers
             .push(format!("doc_rank_weight:{weight:.3}"));
     }
 }

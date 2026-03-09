@@ -6,11 +6,9 @@ use ra_ap_syntax::{
     ast::{self, HasAttrs, HasModuleItem, HasName},
 };
 
-use crate::chunking::{chunk_csv_rows, chunk_markdown};
 use crate::chunking::types::{Chunk, ChunkKind, SourceSpan};
-use crate::config::{
-    DocumentSourceParser, DocumentSourceRule, DocumentSourcesConfig,
-};
+use crate::chunking::{chunk_csv_rows, chunk_markdown};
+use crate::config::{DocumentSourceParser, DocumentSourceRule, DocumentSourcesConfig};
 
 #[derive(Debug, Clone)]
 pub struct RustChunker {

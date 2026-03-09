@@ -1,0 +1,21 @@
+Task family: doc-constrained-change
+
+Goal:
+Propose or review a change constrained by current documentation contracts.
+
+Required retrieval inputs:
+- query mode: bounded-refactor or implement-adjacent
+- symbol_path: preferred
+- limit: bounded
+- include_history: optional
+
+Evidence policy:
+- Normative order: docs/specs -> docs/ops/docs/integrations -> code/tests -> docs/plans -> CHANGELOG.
+- Confirm implementation aligns with normative docs before proposing edits.
+- If docs and code conflict, surface the mismatch explicitly.
+
+Output contract:
+1. Required contract constraints
+2. Suggested code/doc edits
+3. Evidence list by source class
+4. Risk notes and missing evidence

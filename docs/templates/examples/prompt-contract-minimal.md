@@ -5,7 +5,7 @@ Use this as a compact scaffold for agent-facing tasks.
 ```text
 <context>
 Project: <project-name>
-Task: Update docs template sections and verify lint/tests.
+Task: Analyze repository behavior with bounded retrieval evidence.
 </context>
 
 <instruction_priority>
@@ -15,7 +15,8 @@ Task: Update docs template sections and verify lint/tests.
 </instruction_priority>
 
 <constraints>
-- Keep edits minimal and deterministic.
+- Use bounded retrieval (`limit`, optional `symbol_path`, explicit history selectors).
+- Distinguish direct evidence from inference.
 - Do not claim completion without verification output.
 </constraints>
 
@@ -23,6 +24,12 @@ Task: Update docs template sections and verify lint/tests.
 - Return: summary, files changed, verification status.
 - Do not return unrelated analysis.
 </output_contract>
+
+<evidence_contract>
+- Required classes: code and document.
+- Optional class: history (only with explicit selectors).
+- Prefer specs/ops for present behavior over plans/changelog.
+</evidence_contract>
 
 <verification_contract>
 - Run: scripts/doc-lint.sh --changed --strict-new

@@ -75,11 +75,7 @@ pub fn chunk_markdown(
     for (idx, line) in lines.iter().enumerate() {
         let line_number = idx + 1;
         let trimmed = line.trim_start();
-        let heading_level = trimmed
-            .chars()
-            .take_while(|ch| *ch == '#')
-            .count()
-            .min(6);
+        let heading_level = trimmed.chars().take_while(|ch| *ch == '#').count().min(6);
         let heading_title = trimmed
             .strip_prefix('#')
             .map(str::trim)

@@ -1,0 +1,20 @@
+Task family: understand-symbol
+
+Goal:
+Explain present behavior of a target symbol using bounded, snapshot-local evidence.
+
+Required retrieval inputs:
+- query mode: understand-symbol
+- symbol_path: required when known
+- limit: bounded (default mode cap)
+- include_history: false unless user asks for historical context
+
+Evidence policy:
+- Prioritize code symbol definitions and immediate neighbors.
+- Use docs/specs and docs/ops evidence to confirm behavior contracts.
+- Do not treat docs/plans as current behavior unless explicitly stated.
+
+Output contract:
+1. Behavior summary (present state)
+2. Supporting evidence list with file paths/symbol ids
+3. Uncertainty/conflict notes

@@ -2,13 +2,16 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use arrow_array::types::Float32Type;
-use arrow_array::{Array, FixedSizeListArray, Float32Array, Float64Array, RecordBatch, RecordBatchIterator, StringArray};
+use arrow_array::{
+    Array, FixedSizeListArray, Float32Array, Float64Array, RecordBatch, RecordBatchIterator,
+    StringArray,
+};
 use arrow_schema::{DataType, Field, Schema};
 use futures::TryStreamExt;
-use lancedb::index::vector::IvfFlatIndexBuilder;
 use lancedb::index::Index;
+use lancedb::index::vector::IvfFlatIndexBuilder;
 use lancedb::query::{ExecutableQuery, QueryBase};
-use lancedb::{connect, DistanceType};
+use lancedb::{DistanceType, connect};
 use tempfile::tempdir;
 use tokio::runtime::Runtime;
 

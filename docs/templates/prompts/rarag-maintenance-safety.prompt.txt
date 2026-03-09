@@ -1,0 +1,20 @@
+Task family: maintenance-safety
+
+Goal:
+Estimate blast radius and safe rollout/rollback path for maintenance changes.
+
+Required retrieval inputs:
+- query mode: blast-radius
+- limit: bounded
+- include_history: optional
+
+Evidence policy:
+- Prefer tests, ops docs, and integration docs for operational safety signals.
+- Include specs for invariants that must not regress.
+- Use changelog/history as supporting context only.
+
+Output contract:
+1. Impacted areas (code/docs/tests/ops)
+2. Safety checks and verification steps
+3. Rollout and rollback guidance
+4. Residual risks

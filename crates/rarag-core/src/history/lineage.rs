@@ -1,6 +1,9 @@
 use crate::metadata::{HistoryNodeRecord, LineageEdgeRecord};
 
-pub fn derive_lineage_edges(snapshot_id: &str, nodes: &[HistoryNodeRecord]) -> Vec<LineageEdgeRecord> {
+pub fn derive_lineage_edges(
+    snapshot_id: &str,
+    nodes: &[HistoryNodeRecord],
+) -> Vec<LineageEdgeRecord> {
     let mut edges = Vec::new();
     for window in nodes.windows(2) {
         let left = &window[0];

@@ -1,0 +1,21 @@
+Task family: regression-archaeology
+
+Goal:
+Trace likely regression origin across code, docs, and history evidence.
+
+Required retrieval inputs:
+- query mode: blast-radius or bounded-refactor
+- include_history: true
+- history_max_nodes: bounded (for example 4-8)
+- eval_task_id: set when replaying fixture tasks
+
+Evidence policy:
+- Require explicit history selectors for historical claims.
+- Treat lineage edges as confidence-scored heuristics unless directly evidenced.
+- Cross-check history summaries against current code/tests/docs state.
+
+Output contract:
+1. Most likely regression chain with confidence levels
+2. Supporting code/document/history evidence
+3. Alternative hypotheses and gaps
+4. Next retrieval needed to disambiguate

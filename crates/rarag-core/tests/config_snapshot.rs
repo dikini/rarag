@@ -1,8 +1,8 @@
 use rarag_core::config::{
-    AppConfig, CliConfig, DaemonConfig, EmbeddingProviderConfig, McpConfig,
-    DocumentSourcesConfig, HistoryConfig, LanceDbConfig, NeighborhoodWeightsConfig,
-    ObservabilityConfig, ObservabilityVerbosity, RerankWeightsConfig, RetrievalConfig,
-    RuntimePaths, TantivyConfig, TursoConfig, VectorDistanceMetric,
+    AppConfig, CliConfig, DaemonConfig, DocumentSourcesConfig, EmbeddingProviderConfig,
+    HistoryConfig, LanceDbConfig, McpConfig, NeighborhoodWeightsConfig, ObservabilityConfig,
+    ObservabilityVerbosity, RerankWeightsConfig, RetrievalConfig, RuntimePaths, TantivyConfig,
+    TursoConfig, VectorDistanceMetric,
 };
 use rarag_core::snapshot::SnapshotKey;
 
@@ -304,10 +304,7 @@ fn parses_document_history_and_doc_source_sections() {
         config.document_sources.rules[1].kind.as_str(),
         "tasks-registry"
     );
-    assert_eq!(
-        config.document_sources.rules[1].parser.as_str(),
-        "csv"
-    );
+    assert_eq!(config.document_sources.rules[1].parser.as_str(), "csv");
     assert!(config.history.enabled);
     assert_eq!(config.history.max_commits, 200);
 }

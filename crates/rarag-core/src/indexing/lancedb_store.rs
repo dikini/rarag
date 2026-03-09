@@ -7,8 +7,8 @@ use arrow_array::{
 };
 use arrow_schema::{DataType, Field, Schema};
 use futures::TryStreamExt;
-use lancedb::index::vector::IvfFlatIndexBuilder;
 use lancedb::index::Index;
+use lancedb::index::vector::IvfFlatIndexBuilder;
 use lancedb::query::{ExecutableQuery, QueryBase};
 
 use crate::chunking::Chunk;
@@ -32,7 +32,9 @@ struct PreparedPoint {
 
 enum LanceDbBackend {
     Local,
-    InMemory { points: std::sync::Mutex<Vec<PreparedPoint>> },
+    InMemory {
+        points: std::sync::Mutex<Vec<PreparedPoint>>,
+    },
 }
 
 pub struct LanceDbPointStore {
@@ -72,7 +74,12 @@ impl LanceDbPointStore {
         table_name: impl Into<String>,
         dimensions: usize,
     ) -> Result<Self, String> {
-        Self::new_with_metric(db_root, table_name, dimensions, VectorDistanceMetric::Cosine)
+        Self::new_with_metric(
+            db_root,
+            table_name,
+            dimensions,
+            VectorDistanceMetric::Cosine,
+        )
     }
 
     pub fn new_in_memory_with_metric(
@@ -124,12 +131,17 @@ impl LanceDbPointStore {
                     .map_err(|_| "lancedb points lock poisoned".to_string())?;
                 stored.retain(|point| point.snapshot_id != snapshot_id);
                 let added = chunks.len();
-                stored.extend(chunks.iter().zip(vectors).map(|(chunk, vector)| PreparedPoint {
-                    snapshot_id: snapshot_id.to_string(),
-                    chunk_id: chunk.id.clone(),
-                    symbol_path: chunk.symbol_path.clone(),
-                    vector,
-                }));
+                stored.extend(
+                    chunks
+                        .iter()
+                        .zip(vectors)
+                        .map(|(chunk, vector)| PreparedPoint {
+                            snapshot_id: snapshot_id.to_string(),
+                            chunk_id: chunk.id.clone(),
+                            symbol_path: chunk.symbol_path.clone(),
+                            vector,
+                        }),
+                );
                 Ok(added)
             }
             LanceDbBackend::Local => {
@@ -145,7 +157,10 @@ impl LanceDbPointStore {
 
                 let batch = self.build_batch(snapshot_id, chunks, vectors)?;
                 let schema = batch.schema();
-                let data = Box::new(RecordBatchIterator::new(vec![Ok(batch)].into_iter(), schema));
+                let data = Box::new(RecordBatchIterator::new(
+                    vec![Ok(batch)].into_iter(),
+                    schema,
+                ));
                 table
                     .add(data)
                     .execute()
@@ -495,7 +510,7 @@ fn distance_values(batch: &RecordBatch) -> Result<Vec<f32>, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{distance_values, LanceDbPointStore};
+    use super::{LanceDbPointStore, distance_values};
     use crate::chunking::{Chunk, ChunkKind, SourceSpan};
     use crate::config::VectorDistanceMetric;
     use std::sync::Arc;

@@ -209,6 +209,9 @@ weight = 1.3
     assert_eq!(config.history.max_commits, 256);
     assert_eq!(config.document_sources.rules.len(), 2);
     assert_eq!(config.document_sources.rules[0].path_glob, "docs/specs/**");
-    assert_eq!(config.document_sources.rules[1].kind.as_str(), "tasks-registry");
+    assert_eq!(
+        config.document_sources.rules[1].kind.as_str(),
+        "tasks-registry"
+    );
     assert_eq!(config.document_sources.rules[1].parser.as_str(), "csv");
 }

@@ -132,6 +132,19 @@ Use:
 
 - `docs/integrations/codex.md`
 
+## 10. Optional Eval Replay
+
+Run fixture-driven offline replay against the current daemon:
+
+```bash
+rarag eval replay \
+  --fixtures tests/fixtures/eval/tasks.json \
+  --worktree "$PWD" \
+  --include-history \
+  --history-max-nodes 4 \
+  --json
+```
+
 ## Troubleshooting
 
 - `connection refused`: daemon not running or socket path mismatch.
@@ -143,4 +156,5 @@ Use:
 - `INSTALL.md`
 - `docs/ops/systemd-user.md`
 - `docs/ops/lancedb-runtime.md`
+- `docs/ops/optimization-rollout.md`
 - `docs/integrations/README.md`

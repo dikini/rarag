@@ -120,6 +120,7 @@ fn sibling_sections_never_merge_into_one_chunk() {
     assert!(
         spec_sections
             .iter()
-            .all(|chunk| !(chunk.text.contains("Query Contract") && chunk.text.contains("## Reload")))
+            .all(|chunk| !(chunk.text.contains("Query Contract")
+                && chunk.text.contains("## Reload")))
     );
 }

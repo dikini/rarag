@@ -51,7 +51,10 @@ Operations:
 - `INSTALL.md`
 - `docs/ops/systemd-user.md`
 - `docs/ops/lancedb-runtime.md`
+- `docs/ops/optimization-rollout.md`
 - `examples/eval/README.md`
+- `docs/plans/template-eval-rubric.md`
+- `docs/plans/offline-optimization-workflow.md`
 
 ## Repository Layout
 
@@ -72,6 +75,10 @@ Operations:
 4. Update `CHANGELOG.md` for task-completion work.
 5. Use Conventional Commits and install hooks:
    `scripts/install-hooks.sh`
+6. For prompt/skill or retrieval optimization changes, run fixture replay and document results using:
+   - `docs/plans/template-eval-rubric.md`
+   - `docs/plans/optimization-metrics-rubric.md`
+   - `docs/templates/examples/rarag-optimization-proposal.md`
 
 ## Security
 

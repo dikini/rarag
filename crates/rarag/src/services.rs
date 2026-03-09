@@ -46,7 +46,10 @@ pub fn execute(
     run(command, context, false)
 }
 
-pub fn plan(command: &ServiceCommand, context: &ServiceInstallContext) -> Result<ServiceReport, String> {
+pub fn plan(
+    command: &ServiceCommand,
+    context: &ServiceInstallContext,
+) -> Result<ServiceReport, String> {
     run(command, context, true)
 }
 
@@ -297,7 +300,7 @@ fn resolve_config_path(config_source_path: Option<PathBuf>) -> Result<PathBuf, S
 
 #[cfg(test)]
 mod tests {
-    use super::{daemon_unit_contents, resolve_binary_path, ServiceInstallContext};
+    use super::{ServiceInstallContext, daemon_unit_contents, resolve_binary_path};
     use std::fs;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -310,7 +313,9 @@ mod tests {
             config_path: PathBuf::from("/tmp/configs/rarag.toml"),
         };
         let unit = daemon_unit_contents(&context);
-        assert!(unit.contains("ExecStart=/opt/rarag/bin/raragd serve --config /tmp/configs/rarag.toml"));
+        assert!(
+            unit.contains("ExecStart=/opt/rarag/bin/raragd serve --config /tmp/configs/rarag.toml")
+        );
     }
 
     #[test]
@@ -342,10 +347,6 @@ mod tests {
 
         let resolved = resolve_binary_path(&current_exe, "raragd").expect("resolve binary");
         assert_eq!(resolved, sibling_daemon);
-        let _ = fs::remove_dir_all(
-            bin_dir
-                .parent()
-                .expect("test root"),
-        );
+        let _ = fs::remove_dir_all(bin_dir.parent().expect("test root"));
     }
 }

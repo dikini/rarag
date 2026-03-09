@@ -221,8 +221,7 @@ fn map_tool_call(name: &str, arguments: Value) -> Result<DaemonRequest, String> 
                     .transpose()?,
                 changed_paths: value_array_strings(&arguments, "changed_paths"),
                 include_history: value_bool(&arguments, "include_history").unwrap_or(false),
-                history_max_nodes: value_usize(&arguments, "history_max_nodes")
-                    .transpose()?,
+                history_max_nodes: value_usize(&arguments, "history_max_nodes").transpose()?,
                 eval_task_id: value_string(&arguments, "eval_task_id"),
             };
             if matches!(name, "blast_radius" | "rag_blast_radius") {
@@ -383,8 +382,8 @@ fn read_stdio_request_value<R: BufRead>(reader: &mut R) -> Result<Option<Value>,
         }
     }
 
-    let content_length =
-        content_length.ok_or_else(|| "missing Content-Length header in MCP stdio request".to_string())?;
+    let content_length = content_length
+        .ok_or_else(|| "missing Content-Length header in MCP stdio request".to_string())?;
     if content_length > LOCAL_IPC_MAX_MESSAGE_BYTES {
         return Err(format!(
             "mcp request too large: {content_length} bytes exceeds limit {LOCAL_IPC_MAX_MESSAGE_BYTES}"
@@ -395,7 +394,9 @@ fn read_stdio_request_value<R: BufRead>(reader: &mut R) -> Result<Option<Value>,
     reader
         .read_exact(&mut body)
         .map_err(|err| err.to_string())?;
-    serde_json::from_slice(&body).map(Some).map_err(|err| err.to_string())
+    serde_json::from_slice(&body)
+        .map(Some)
+        .map_err(|err| err.to_string())
 }
 
 fn write_stdio_response_value<W: Write>(writer: &mut W, response: &Value) -> Result<(), String> {

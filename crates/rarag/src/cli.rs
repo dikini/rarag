@@ -16,11 +16,22 @@ pub struct CliCommand {
 pub enum CliAction {
     DaemonRequest(DaemonRequest),
     Service(ServiceCommand),
+    EvalReplay(EvalReplayCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceCommand {
     pub operation: ServiceOperation,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvalReplayCommand {
+    pub fixtures_path: PathBuf,
+    pub snapshot_id: Option<String>,
+    pub worktree_root: Option<String>,
+    pub include_history: bool,
+    pub history_max_nodes: Option<usize>,
+    pub limit: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,6 +74,12 @@ pub fn parse_command(
             action: CliAction::Service(ServiceCommand {
                 operation: parse_service_operation(subcommand, args)?,
             }),
+            socket_path,
+            json,
+            dry_run,
+        }),
+        (Some("eval"), Some("replay")) => Ok(CliCommand {
+            action: CliAction::EvalReplay(parse_eval_replay_command(args)?),
             socket_path,
             json,
             dry_run,
@@ -208,7 +225,7 @@ fn parse_named_query_payload(
     })
 }
 
-fn parse_query_mode(value: &str) -> Result<QueryMode, String> {
+pub fn parse_query_mode(value: &str) -> Result<QueryMode, String> {
     match value {
         "understand-symbol" => Ok(QueryMode::UnderstandSymbol),
         "implement-adjacent" => Ok(QueryMode::ImplementAdjacent),
@@ -217,6 +234,34 @@ fn parse_query_mode(value: &str) -> Result<QueryMode, String> {
         "blast-radius" => Ok(QueryMode::BlastRadius),
         _ => Err(format!("unsupported --mode {value}")),
     }
+}
+
+fn parse_eval_replay_command(args: &[String]) -> Result<EvalReplayCommand, String> {
+    let snapshot_id = locator_option(args, "--snapshot-id", "--snapshot");
+    let worktree_root = locator_option(args, "--worktree-root", "--worktree");
+    if snapshot_id.is_none() && worktree_root.is_none() {
+        return Err("eval replay requires --snapshot or --worktree".to_string());
+    }
+    Ok(EvalReplayCommand {
+        fixtures_path: PathBuf::from(required_option(args, "--fixtures")?),
+        snapshot_id,
+        worktree_root,
+        include_history: args.iter().any(|arg| arg == "--include-history"),
+        history_max_nodes: option_value(args, "--history-max-nodes")
+            .map(|value| {
+                value
+                    .parse()
+                    .map_err(|err| format!("invalid --history-max-nodes: {err}"))
+            })
+            .transpose()?,
+        limit: option_value(args, "--limit")
+            .map(|value| {
+                value
+                    .parse()
+                    .map_err(|err| format!("invalid --limit: {err}"))
+            })
+            .transpose()?,
+    })
 }
 
 fn required_option(args: &[String], flag: &str) -> Result<String, String> {
@@ -340,5 +385,56 @@ mod tests {
         )
         .expect_err("parse error");
         assert!(err.contains("reload only supports raragd or all"));
+    }
+
+    #[test]
+    fn parses_eval_replay_with_worktree() {
+        let parsed = parse_command(
+            &args(&[
+                "rarag",
+                "eval",
+                "replay",
+                "--fixtures",
+                "tests/fixtures/eval/tasks.json",
+                "--worktree",
+                "/repo",
+                "--include-history",
+                "--history-max-nodes",
+                "4",
+                "--limit",
+                "8",
+            ]),
+            "/tmp/raragd.sock",
+            false,
+        )
+        .expect("parse command");
+        assert_eq!(
+            parsed.action,
+            CliAction::EvalReplay(EvalReplayCommand {
+                fixtures_path: PathBuf::from("tests/fixtures/eval/tasks.json"),
+                snapshot_id: None,
+                worktree_root: Some("/repo".to_string()),
+                include_history: true,
+                history_max_nodes: Some(4),
+                limit: Some(8),
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_eval_replay_without_locator() {
+        let err = parse_command(
+            &args(&[
+                "rarag",
+                "eval",
+                "replay",
+                "--fixtures",
+                "tests/fixtures/eval/tasks.json",
+            ]),
+            "/tmp/raragd.sock",
+            false,
+        )
+        .expect_err("parse error");
+        assert_eq!(err, "eval replay requires --snapshot or --worktree");
     }
 }

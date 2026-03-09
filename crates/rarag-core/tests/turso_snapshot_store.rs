@@ -505,7 +505,11 @@ fn stores_document_blocks_history_nodes_and_observations() {
             )
             .with_eval(
                 Some("reload-archaeology".to_string()),
-                vec!["code".to_string(), "document".to_string(), "history".to_string()],
+                vec![
+                    "code".to_string(),
+                    "document".to_string(),
+                    "history".to_string(),
+                ],
             );
             let candidates = vec![CandidateObservationRecord::new(
                 "obs-doc-history",

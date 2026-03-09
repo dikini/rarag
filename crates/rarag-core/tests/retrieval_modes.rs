@@ -1,11 +1,11 @@
 use std::path::{Path, PathBuf};
 
 use rarag_core::chunking::RustChunker;
-use rarag_core::config_loader::load_app_config;
 use rarag_core::config::{
     DocumentSourceKind, DocumentSourceParser, DocumentSourceRule, DocumentSourcesConfig,
     ObservabilityConfig, ObservabilityVerbosity, RetrievalConfig,
 };
+use rarag_core::config_loader::load_app_config;
 use rarag_core::embeddings::EmbeddingProvider;
 use rarag_core::indexing::{ChunkIndexer, LanceDbPointStore, TantivyChunkStore};
 use rarag_core::metadata::SnapshotStore;
@@ -467,11 +467,10 @@ fn prefers_normative_spec_over_plan_for_current_behavior() {
                 .file_path
                 .ends_with("docs/specs/current-behavior.md")
         });
-        let plan_rank = response.items.iter().position(|item| {
-            item.chunk
-                .file_path
-                .ends_with("docs/plans/future-work.md")
-        });
+        let plan_rank = response
+            .items
+            .iter()
+            .position(|item| item.chunk.file_path.ends_with("docs/plans/future-work.md"));
 
         assert!(spec_rank.is_some(), "expected spec evidence in result set");
         if let Some(plan_rank) = plan_rank {
@@ -507,7 +506,10 @@ fn returns_docs_code_and_tests_for_doc_constrained_change() {
             item.chunk.chunk_kind == "DocumentBlock" || item.chunk.chunk_kind == "TaskRow"
         }));
         assert!(response.items.iter().any(|item| {
-            matches!(item.chunk.chunk_kind.as_str(), "Symbol" | "BodyRegion" | "CrateSummary")
+            matches!(
+                item.chunk.chunk_kind.as_str(),
+                "Symbol" | "BodyRegion" | "CrateSummary"
+            )
         }));
         assert!(
             response
@@ -635,11 +637,10 @@ weight = 0.1
             .await
             .expect("retrieve");
 
-        let plan_rank = response.items.iter().position(|item| {
-            item.chunk
-                .file_path
-                .ends_with("docs/plans/future-work.md")
-        });
+        let plan_rank = response
+            .items
+            .iter()
+            .position(|item| item.chunk.file_path.ends_with("docs/plans/future-work.md"));
         let spec_rank = response.items.iter().position(|item| {
             item.chunk
                 .file_path
@@ -758,11 +759,10 @@ fn toml_document_rank_weight_override_applies_without_reindex_markers() {
             .await
             .expect("retrieve");
 
-        let plan_rank = response.items.iter().position(|item| {
-            item.chunk
-                .file_path
-                .ends_with("docs/plans/future-work.md")
-        });
+        let plan_rank = response
+            .items
+            .iter()
+            .position(|item| item.chunk.file_path.ends_with("docs/plans/future-work.md"));
         let spec_rank = response.items.iter().position(|item| {
             item.chunk
                 .file_path
@@ -875,8 +875,18 @@ fn regression_archaeology_returns_changes_docs_and_tests() {
             .await
             .expect("retrieve");
 
-        assert!(response.items.iter().any(|item| item.chunk.chunk_kind == "HistoryNode"));
-        assert!(response.items.iter().any(|item| item.chunk.chunk_kind == "DocumentBlock"));
+        assert!(
+            response
+                .items
+                .iter()
+                .any(|item| item.chunk.chunk_kind == "HistoryNode")
+        );
+        assert!(
+            response
+                .items
+                .iter()
+                .any(|item| item.chunk.chunk_kind == "DocumentBlock")
+        );
         assert!(
             response
                 .items

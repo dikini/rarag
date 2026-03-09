@@ -14,6 +14,18 @@ These templates standardize project artifacts while keeping dependencies minimal
   - Spec structure with task contracts and verification focus.
 - `plan.template.md`
   - Strict TDD execution plan format.
+- `examples/rarag-evidence-contract.md`
+  - Shared evidence contract for `rarag` prompt/skill consumers.
+- `examples/rarag-skill-template.md`
+  - Skill scaffold aligned to retrieval evidence classes and eval hooks.
+- `prompts/rarag-understand-symbol.prompt.txt`
+  - Symbol-understanding prompt template.
+- `prompts/rarag-doc-constrained-change.prompt.txt`
+  - Doc-constrained implementation/review template.
+- `prompts/rarag-regression-archaeology.prompt.txt`
+  - History-aware regression analysis template.
+- `prompts/rarag-maintenance-safety.prompt.txt`
+  - Maintenance blast-radius and safety template.
 
 ## Strict TDD profile
 
@@ -70,3 +82,14 @@ Strict-profile spec/plan templates now include deterministic prompt-contract sec
 - These tags are plain-text conventions, not parser requirements.
 - Critical constraints must always be duplicated in plain language so behavior remains stable across model variants.
 - Minimal example: `docs/templates/examples/prompt-contract-minimal.md`
+
+## rarag Prompt/Skill Contract
+
+For repository-assistance tasks, prompts and skills should use:
+
+- `docs/templates/examples/rarag-evidence-contract.md`
+- `docs/templates/examples/rarag-skill-template.md`
+
+Template evaluation should be tied to fixture replay and observation evidence-class coverage:
+
+- `docs/plans/template-eval-rubric.md`

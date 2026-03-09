@@ -1,8 +1,7 @@
 use crate::chunking::Chunk;
 use crate::metadata::{
     CandidateObservationRecord, ChunkRecord, DocumentBlockRecord, EdgeRecord, HistoryNodeRecord,
-    IndexingRunRecord, LineageEdgeRecord, QueryAuditRecord, QueryObservationRecord,
-    SnapshotRecord,
+    IndexingRunRecord, LineageEdgeRecord, QueryAuditRecord, QueryObservationRecord, SnapshotRecord,
 };
 use crate::semantic::SemanticEdge;
 use crate::snapshot::SnapshotKey;
@@ -190,7 +189,10 @@ impl SnapshotStore {
         blocks: &[DocumentBlockRecord],
     ) -> Result<(), String> {
         self.connection
-            .execute("DELETE FROM document_blocks WHERE snapshot_id = ?1", [snapshot_id])
+            .execute(
+                "DELETE FROM document_blocks WHERE snapshot_id = ?1",
+                [snapshot_id],
+            )
             .await
             .map_err(|err| err.to_string())?;
         for block in blocks {
@@ -253,7 +255,10 @@ impl SnapshotStore {
         nodes: &[HistoryNodeRecord],
     ) -> Result<(), String> {
         self.connection
-            .execute("DELETE FROM history_nodes WHERE snapshot_id = ?1", [snapshot_id])
+            .execute(
+                "DELETE FROM history_nodes WHERE snapshot_id = ?1",
+                [snapshot_id],
+            )
             .await
             .map_err(|err| err.to_string())?;
         for node in nodes {
@@ -305,7 +310,10 @@ impl SnapshotStore {
         edges: &[LineageEdgeRecord],
     ) -> Result<(), String> {
         self.connection
-            .execute("DELETE FROM lineage_edges WHERE snapshot_id = ?1", [snapshot_id])
+            .execute(
+                "DELETE FROM lineage_edges WHERE snapshot_id = ?1",
+                [snapshot_id],
+            )
             .await
             .map_err(|err| err.to_string())?;
         for edge in edges {
@@ -381,8 +389,8 @@ impl SnapshotStore {
         let changed_paths_json =
             encode_string_list(&record.changed_paths).map_err(|err| err.to_string())?;
         let warnings_json = encode_string_list(&record.warnings).map_err(|err| err.to_string())?;
-        let evidence_coverage_json = encode_string_list(&record.evidence_class_coverage)
-            .map_err(|err| err.to_string())?;
+        let evidence_coverage_json =
+            encode_string_list(&record.evidence_class_coverage).map_err(|err| err.to_string())?;
         let tx = self
             .connection
             .unchecked_transaction()

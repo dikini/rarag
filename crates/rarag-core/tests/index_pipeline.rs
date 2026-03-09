@@ -143,7 +143,8 @@ fn metadata_lexical_and_vector_counts_match() {
             .await
             .expect("create snapshot");
         let tantivy = TantivyChunkStore::open(&tantivy_dir).expect("open tantivy");
-        let lancedb = LanceDbPointStore::new_in_memory("memory://index-pipeline", "rarag_chunks", 4);
+        let lancedb =
+            LanceDbPointStore::new_in_memory("memory://index-pipeline", "rarag_chunks", 4);
         let provider = StaticEmbeddingProvider { dimensions: 4 };
         let indexer = ChunkIndexer::new(&metadata, &tantivy, &lancedb, &provider);
         let chunks = RustChunker::new(80)
@@ -181,7 +182,8 @@ fn reindexes_fixture_repository() {
             .await
             .expect("create snapshot");
         let tantivy = TantivyChunkStore::open(&tantivy_dir).expect("open tantivy");
-        let lancedb = LanceDbPointStore::new_in_memory("memory://index-pipeline", "rarag_chunks", 4);
+        let lancedb =
+            LanceDbPointStore::new_in_memory("memory://index-pipeline", "rarag_chunks", 4);
         let provider = StaticEmbeddingProvider { dimensions: 4 };
         let indexer = ChunkIndexer::new(&metadata, &tantivy, &lancedb, &provider);
         let chunks = RustChunker::new(80)
@@ -231,8 +233,7 @@ fn indexes_docs_templates_and_changelog_as_document_blocks() {
             .await
             .expect("create snapshot");
         let tantivy = TantivyChunkStore::open(&tantivy_dir).expect("open tantivy");
-        let lancedb =
-            LanceDbPointStore::new_in_memory("memory://index-docs", "rarag_chunks", 4);
+        let lancedb = LanceDbPointStore::new_in_memory("memory://index-docs", "rarag_chunks", 4);
         let provider = StaticEmbeddingProvider { dimensions: 4 };
         let indexer = ChunkIndexer::new(&metadata, &tantivy, &lancedb, &provider);
         let chunks = RustChunker::new(120)
@@ -256,8 +257,10 @@ fn indexes_docs_templates_and_changelog_as_document_blocks() {
             doc.file_path.ends_with("docs/templates/plan.template.md")
                 && doc.document_kind == "documentation"
         }));
-        assert!(docs
-            .iter()
-            .any(|doc| doc.file_path.ends_with("CHANGELOG.md") && doc.document_kind == "changelog"));
+        assert!(
+            docs.iter()
+                .any(|doc| doc.file_path.ends_with("CHANGELOG.md")
+                    && doc.document_kind == "changelog")
+        );
     });
 }

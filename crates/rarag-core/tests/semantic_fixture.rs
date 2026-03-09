@@ -258,8 +258,23 @@ fn mixed_code_and_doc_evidence_preserves_snapshot_boundary() {
             .expect("retrieve");
 
         assert!(!response.items.is_empty());
-        assert!(response.items.iter().all(|item| item.snapshot_id == snapshot_a.id));
-        assert!(response.items.iter().any(|item| item.chunk.chunk_kind == "DocumentBlock"));
-        assert!(response.items.iter().any(|item| item.chunk.chunk_kind == "Symbol"));
+        assert!(
+            response
+                .items
+                .iter()
+                .all(|item| item.snapshot_id == snapshot_a.id)
+        );
+        assert!(
+            response
+                .items
+                .iter()
+                .any(|item| item.chunk.chunk_kind == "DocumentBlock")
+        );
+        assert!(
+            response
+                .items
+                .iter()
+                .any(|item| item.chunk.chunk_kind == "Symbol")
+        );
     });
 }
