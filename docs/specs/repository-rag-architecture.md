@@ -8,7 +8,7 @@
 > - Use Property-based tests only when a generative framework is actually used.
 > - Run `scripts/doc-lint.sh` before commit.
 
-Updated: 2026-03-08
+Updated: 2026-03-09
 Status: active
 Owner: Codex
 Template-Profile: tdd-strict-v1
@@ -49,6 +49,7 @@ The system is not a generic question-answering assistant. It is a repository mem
 Related Task Registry ID: `2026-03-07-shared-config`
 Related Task Registry ID: `2026-03-08-rerank-observability`
 Related Task Registry ID: `2026-03-08-local-ipc-hardening`
+Related Task Registry ID: `2026-03-09-doc-history-eval-foundations`
 
 ## Scope
 
@@ -56,11 +57,14 @@ Related Task Registry ID: `2026-03-08-local-ipc-hardening`
 
 - Rust implementation targeting toolchain `1.93+` and edition `2024`.
 - Hybrid retrieval using `ra_ap_syntax` chunk spans, `rust-analyzer` semantic enrichment when available, BM25 via Tantivy, metadata in Turso, and vector storage in LanceDB.
+- Semantic document and structured-knowledge indexing for repository knowledge sources such as specs, plans, changelog, ops docs, install docs, integration docs, templates, and small task-registry tables.
 - Snapshot-aware indexing keyed by repository, git worktree, commit SHA, target triple, feature set, and cfg profile.
+- Temporal and causal retrieval over git-backed repository history, including symbol/file lineage, change neighborhoods, and bounded rationale evidence.
 - Local developer use through a CLI and a local MCP server over Unix sockets.
 - Shared TOML configuration for `rarag`, `raragd`, and `rarag-mcp`, with code defaults that remain overridable.
 - Retrieval modes tuned for repository-assistance tasks.
 - Configurable heuristic reranking and opt-in retrieval observability for evaluation and tuning.
+- Task-based retrieval evaluation using persisted observation traces, explicit evidence classes, and small curated repository task fixtures.
 - Test-first development and verification-aware repository assistance.
 
 ### Out of Scope
@@ -70,6 +74,7 @@ Related Task Registry ID: `2026-03-08-local-ipc-hardening`
 - Automatic code writing without explicit client-side orchestration.
 - Non-Rust indexing in the MVP.
 - Full reliance on LSP as the primary index source.
+- Live self-modifying prompts, automatic online weight tuning, or autonomous template rollout without offline evaluation and explicit human approval.
 
 ## Core Terms
 
@@ -77,9 +82,16 @@ Related Task Registry ID: `2026-03-08-local-ipc-hardening`
 - `chunk`: A retrievable unit of source-derived content with stable source span metadata.
 - `symbol chunk`: A chunk representing a repository-level symbol such as a function, method, trait, impl block, struct, enum, constant, macro, or test.
 - `body region`: A subordinate chunk created when a symbol body exceeds size limits; it must retain its owning symbol header and symbol id.
+- `document`: A repository knowledge source such as a Markdown spec, plan, runbook, changelog, integration guide, template, README-class file, or a supported structured text file such as a task-registry CSV.
+- `document block`: A heading-scoped, block-scoped, or row-scoped retrievable unit derived from a document with preserved structural path and source span.
+- `document semantics`: Typed annotations attached to a document block, including intent, normativity, lifecycle, and resolved references.
 - `edge`: A typed relationship between chunks or symbols such as `contains`, `references`, `implements`, or `tested_by`.
+- `history node`: A commit-, diff-, or lineage-derived retrieval object representing repository evolution at a bounded point or range in time.
+- `lineage edge`: A typed temporal or causal relationship such as `renamed_to`, `split_into`, `followed_by`, `reverted_by`, `fixes`, or `introduced_invariant`.
 - `neighborhood`: A bounded set of chunks assembled around one or more target symbols for a specific retrieval request.
 - `query mode`: One of `understand-symbol`, `implement-adjacent`, `bounded-refactor`, `find-examples`, or `blast-radius`.
+- `evidence class`: A retrieval result family such as `code`, `docs`, `tests`, `config`, or `history` used both for ranking and evaluation.
+- `evaluation task`: A repository-task fixture with a prompt, selected revision, expected evidence sets, and distractor expectations used to assess retrieval quality.
 - `daemon`: The long-lived local process that owns open indexes, background indexing, and the Unix-socket service surface.
 - `worktree lineage`: The set of snapshots derived from a single git worktree over time.
 
@@ -98,6 +110,7 @@ The architecture consists of four Rust crates in one workspace:
 
 - A single optional TOML file, `rarag.toml`, is the canonical user-facing configuration surface for `rarag`, `raragd`, and `rarag-mcp`.
 - Shared sections cover runtime paths, storage endpoints, embedding provider settings, indexing behavior, and retrieval behavior.
+- Shared sections must also cover repository knowledge-source classification defaults and overrides for document kinds, parser types, path globs, and retrieval priors.
 - Shared config must also cover retrieval rerank weights and observability controls.
 - Binary-specific sections cover CLI output defaults, daemon socket/service settings, and MCP socket/tool exposure settings.
 - Code defaults remain the first layer. Config values override code defaults. Explicit environment and CLI overrides may apply on top where supported by a binary.
@@ -116,10 +129,12 @@ The architecture consists of four Rust crates in one workspace:
 ### Storage Contract
 
 - Turso stores snapshot metadata, chunk metadata, graph edges, indexing runs, query audit rows, and provider configuration metadata.
+- Turso also stores document metadata, document block metadata, document semantic annotations, document references, history/change metadata, lineage edges, and evaluation task metadata when those features are enabled by the active build.
 - Turso may also store retrieval observation rows and candidate-feature rows when observability is enabled.
 - Tantivy stores lexical fields for chunk text, symbol path, symbol name, docs text, extracted signature text, file path, chunk kind, test/example markers, and repository-state hints.
-- LanceDB stores chunk vectors and optional reranking helper payloads keyed by `chunk_id` and `snapshot_id`.
-- All three stores must use the same stable `chunk_id` and `snapshot_id` values.
+- Tantivy must also index document-block text, heading path, document kind, intent labels, commands/config references, and history/change summaries when those retrieval families are present.
+- LanceDB stores chunk, document-block, and history-node vectors plus optional reranking helper payloads keyed by stable object id and `snapshot_id`.
+- All three stores must use the same stable object ids and `snapshot_id` values for the same retrievable object family.
 
 ### Embedding Provider Contract
 
@@ -139,41 +154,131 @@ The architecture consists of four Rust crates in one workspace:
 - Rust doc comments with runnable fenced code blocks must be extracted into retrievable doctest/example chunks with source backreferences to the owning item.
 - Structural chunking must succeed even when semantic enrichment is unavailable.
 
+### Document Graph Contract
+
+- Repository knowledge files are first-class retrieval sources, not auxiliary prose.
+- Document indexing must cover at least these default classes:
+  - `README.md`
+  - `INSTALL.md`
+  - `CHANGELOG.md`
+  - `docs/specs/**`
+  - `docs/plans/**`
+  - `docs/ops/**`
+  - `docs/integrations/**`
+  - `docs/templates/**`
+- Structured knowledge indexing must also support straightforward non-Markdown repository artifacts when explicitly classified, starting with:
+  - `docs/tasks/tasks.csv`
+- Document ingestion must preserve:
+  - file path
+  - structural path such as heading path or row identity
+  - source line span
+  - block type or row type
+  - document kind
+- Default document classes and retrieval priors may be derived from built-in path conventions, but they must be overridable through shared TOML configuration.
+- Shared TOML overrides must support, at minimum:
+  - path glob or exact path matching
+  - parser type such as `markdown` or `csv`
+  - document kind override
+  - default intent/normativity priors
+  - ranking-priority overrides within bounded allowed ranges
+- Heading-scoped chunking is required for Markdown sources; sibling sections must not be merged into one retrievable unit merely to satisfy token budgets.
+- Row-scoped chunking is required for supported CSV knowledge sources; unrelated rows must not be merged into one retrievable unit merely to satisfy token budgets.
+- Document semantics must support at least:
+  - intent labels such as `Requirement`, `Constraint`, `Invariant`, `DesignRationale`, `ImplementationStep`, `OperationalProcedure`, `MigrationNote`, `Troubleshooting`, `FutureWork`, and `NonGoal`
+  - normativity labels `normative`, `advisory`, and `informative`
+  - lifecycle labels sufficient to distinguish current behavior from future plans and historical notes
+- Document references must resolve and store typed links where possible, including:
+  - symbols
+  - file paths
+  - crate/module paths
+  - config keys
+  - commands and subcommands
+  - environment variables
+  - tests
+  - commits, issues, and PR references when present
+- Document indexing must degrade gracefully:
+  - unresolved references remain explicit
+  - failed semantic annotation must not suppress lexical document retrieval
+  - document retrieval must still work without history enrichment
+- Built-in path conventions for current repo workflow are defaults, not hidden hardcoded policy; other repositories may override them through config without patching `rarag`.
+
 ### Semantic Enrichment Contract
 
 - `rust-analyzer` semantic APIs are optional for base indexing and required for enrichment paths when available.
 - Enrichment attaches definitions, references, implementations, trait relationships, type hints, containment, re-exports, and test links.
 - Failure to enrich must degrade gracefully to structural retrieval without corrupting existing snapshots.
 
+### History and Causality Contract
+
+- Snapshot identity remains the baseline temporal model for repository state at one build world.
+- History retrieval must add bounded repository-evolution objects without relaxing snapshot isolation for present-state retrieval.
+- History ingestion must support at least:
+  - commit metadata
+  - file change summaries
+  - symbol change summaries when derivable
+  - path rename/move lineage
+  - worktree-local change windows
+- The system must support explicit history selectors such as:
+  - commit SHA
+  - timestamp or bounded time window
+  - release tag when resolvable
+- Temporal retrieval must support at least:
+  - `get state at ref`
+  - `show changes between refs`
+  - `resolve file history`
+  - `resolve symbol history`
+- Causal retrieval must remain evidence-backed and bounded.
+- Causal/lineage edges may include:
+  - `renamed_to`
+  - `moved_to`
+  - `split_into`
+  - `merged_from`
+  - `followed_by`
+  - `reverted_by`
+  - `fixes`
+  - `depends_on`
+  - `introduced_invariant`
+  - `tested_by_change`
+- The system must not present inferred causal relationships as certain facts when only weak heuristics exist.
+- History retrieval must expose uncertainty and the evidence used to derive lineage or causal edges.
+
 ### Retrieval Contract
 
 Inputs:
 
 - `snapshot selector`: exact snapshot id or a resolver input such as repo root plus worktree root.
+- optional `history selector`: commit SHA, time window, or tag when the query explicitly targets historical state or change analysis.
 - `query mode`
 - `query text`
-- optional symbol hint, file hint, path filters, and diff scope
+- optional symbol hint, file hint, path filters, diff scope, evidence-class hints, and task-type hint
 
 Outputs:
 
 - ranked target symbols
+- ranked document blocks and history nodes when relevant to the query
 - bounded neighborhood chunks
+- evidence-class coverage for the final result set
 - evidence metadata describing why each chunk was selected
 - unresolved gaps when semantic enrichment is missing or stale
+- unresolved gaps when document reference resolution or history derivation is missing, stale, or low-confidence
 
 Retrieval order:
 
 1. resolve snapshot
-2. run hybrid candidate search via Tantivy and LanceDB
-3. perform bounded graph expansion
-4. rerank with diff/worktree locality plus query-mode-specific signals
-5. assemble compact neighborhood
+2. resolve explicit historical scope when requested
+3. run hybrid candidate search across code, documents, and history families via Tantivy and LanceDB
+4. perform bounded graph expansion across code, document, and lineage edges
+5. rerank with diff/worktree locality, document-kind priors, history locality, and query-mode-specific signals
+6. assemble compact neighborhood
 
 Rerank configuration:
 
 - The heuristic reranker must remain deterministic by default.
 - Rerank and neighborhood weights must be configurable through shared TOML without changing the daemon request surface.
 - Code defaults must preserve the current ranking behavior when no overrides are present.
+- Normative spec/runbook evidence must outrank advisory or historical-plan evidence when the query asks what behavior is required now, unless the caller explicitly requests planned or historical state.
+- Built-in document-class ordering and weighting are defaults and must remain configurable through shared TOML overrides.
+- Retrieval must prefer smaller decisive evidence sets over larger loosely related neighborhoods when both satisfy the query.
 
 Observability:
 
@@ -182,6 +287,29 @@ Observability:
 - When enabled, the system must emit structured query observation logs suitable for correlation with agent logs.
 - When enabled, the system must also persist enough candidate-feature history to generate offline evaluation sets and compare rerank tuning changes later.
 - Observation capture must not change retrieval outputs or ranking decisions.
+- Observation capture must preserve enough detail to explain:
+  - candidate-generation failure
+  - ranking failure
+  - granularity failure
+  - fusion failure
+  - boundedness failure
+- Evaluation must be task-based, not query-string-only.
+- Evaluation tasks must support:
+  - prompt text
+  - snapshot or history reference
+  - ideal evidence set
+  - acceptable evidence set
+  - distractor set
+  - expected evidence-class coverage
+- Supported retrieval-quality metrics must include at least:
+  - `hit@k`
+  - mean rank of first decisive item
+  - evidence-class coverage
+  - noise ratio
+  - context efficiency
+  - answerability
+  - sufficiency
+  - actionability
 
 ### CLI Contract
 
@@ -292,6 +420,9 @@ All paths must be overridable by config or CLI flags.
 - Snapshot identity is immutable after creation.
 - Retrieval results never mix chunks from different snapshots.
 - Every body-region retains its owning symbol header and symbol id.
+- Heading-scoped document chunks preserve heading path and line span.
+- Row-scoped structured-document chunks preserve row identity and source span.
+- Document retrieval never silently upgrades advisory or historical-plan text into current normative behavior.
 - Existing socket parent directory permissions are never implicitly tightened.
 - Local IPC request reads are bounded in bytes and time.
 - Local IPC deadlines apply to the full request assembly window, not just individual socket read calls.
@@ -307,9 +438,12 @@ All paths must be overridable by config or CLI flags.
 - Shared config semantics remain consistent across CLI, daemon, and MCP binaries.
 - The MCP transport remains interoperable with standard local MCP clients over Unix sockets.
 - Lexical storage remains rich enough to satisfy symbol, docs/example, and bounded-refactor retrieval use cases without depending entirely on embeddings.
+- Document references, history nodes, and lineage edges remain explicitly typed; unresolved edges remain visible as unresolved rather than being dropped silently.
+- Historical queries only cross snapshot boundaries when the caller explicitly asks for temporal comparison or lineage.
 - Rerank defaults preserve baseline behavior unless explicitly overridden in config.
 - Observability remains off unless explicitly enabled in config.
 - Observation capture remains side-effect free with respect to ranking and retrieval outputs.
+- Evaluation data is reproducible against an explicit repository revision or snapshot selector.
 - Config reload never leaves the daemon in a partially applied configuration state.
 
 ## Task Contracts
@@ -567,6 +701,18 @@ Property-based (optional):
    - Input: changed file set plus an optional symbol or path hint.
    - Expected retrieval: invariants, tests, and high-risk references near the current diff before proposing fixes.
 
+6. `doc-constrained change`
+   - Input: a feature or refactor intent with a subsystem hint.
+   - Expected retrieval: current spec blocks, relevant plans, operational constraints, code symbols, config keys, and tests that jointly bound the allowed change.
+
+7. `regression archaeology`
+   - Input: a failing test, stack frame, log message, or symptom plus a time window.
+   - Expected retrieval: recent related changes, semantic diff summaries, follow-up or revert chains, historical tests, and document rationale when available.
+
+8. `repository usefulness eval`
+   - Input: a curated evaluation task at a fixed revision.
+   - Expected retrieval: decisive evidence classes appear early, distractors stay bounded, and persisted traces explain candidate loss or ranking noise.
+
 ## Verification
 
 - Required before implementation claims:
@@ -587,12 +733,17 @@ Property-based (optional):
 - Macro-heavy repositories may expose incomplete semantic edges in early versions.
 - LanceDB or embedding-provider outages may reduce retrieval quality; the system must still return lexical plus structural results with warnings.
 - Overly large neighborhoods can silently become prompt stuffing if size caps are not enforced and tested.
+- Markdown semantic labeling may overfit repository-specific writing style if priors are not bounded and tested against neutral fixtures.
+- Naive history ingestion can become noisy or expensive if commit-level indexing is allowed to outrun symbol/file lineage quality.
+- Causal inference can create false confidence unless every derived edge carries source evidence and confidence metadata.
+- Evaluation traces can create privacy or storage pressure if raw prompts and retrieved payloads are persisted without retention policy or sampling boundaries.
 
 ## Open Questions
 
-- Whether to support additional embedding providers beyond the initial OpenAI-compatible implementation in the first production milestone.
-- Whether to persist analyzer-derived call edges in the MVP or start with definitions, references, impls, and test links only.
-- Whether reranking should remain heuristic in the MVP or add a learned reranker after retrieval behavior stabilizes.
+- Whether initial history ingestion should be commit-window-first or symbol-lineage-first for the first causal retrieval milestone.
+- Whether document semantic annotation should begin with heuristic/path priors only or include an explicit lightweight classifier before multi-repo rollout.
+- Whether history and document retrieval should remain primarily behind `rag_query` plus optional hints or gain dedicated read-only CLI/MCP surfaces in the first implementation wave.
+- When enough eval evidence exists to justify proposing offline learned rerank or template optimization candidates.
 
 ## References
 
@@ -602,3 +753,4 @@ Property-based (optional):
 - `ra_ap_syntax` docs: <https://docs.rs/ra_ap_syntax/latest/ra_ap_syntax/>
 - `ra_ap_ide` docs: <https://docs.rs/ra_ap_ide/latest/ra_ap_ide/>
 - Vault note: `sharo/research/rust-code-rag-semantic-chunking.md`
+- Shared conversation: `https://chatgpt.com/share/69aef8cc-ba2c-8012-abb5-3cf5e5f5dc78`
