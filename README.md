@@ -88,7 +88,7 @@ Operations:
 
 Dependency note:
 - `CDLA-Permissive-2.0` in dependency scans currently comes from [`webpki-roots`](https://crates.io/crates/webpki-roots), which is pulled in by `reqwest` with `rustls` TLS support for HTTPS provider calls.
-- Task Registry ID: `2026-03-08-dependency-refresh` tracks periodic dependency refresh and removal of temporary advisory ignores once upstream crates migrate.
+- Task Registry ID: `2026-03-08-dependency-refresh` tracks periodic dependency refresh and remaining temporary advisory ignore cleanup as upstream crates migrate.
 
 ## License
 

@@ -27,10 +27,8 @@ version = 2
 yanked = "warn"
 ignore = [
   # Temporary until upstream dependencies remove/replace affected crates:
-  # - turso stack removes paste
-  # - rustls stack removes rustls-pemfile
+  # - turso/lance stack removes paste
   "RUSTSEC-2024-0436", # paste (transitive via turso)
-  "RUSTSEC-2025-0134", # rustls-pemfile (transitive)
 ]
 
 [bans]

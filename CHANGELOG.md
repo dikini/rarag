@@ -50,6 +50,7 @@ The format is based on Common Changelog:
 
 ### Fixed
 
+- Fixed dependency-refresh baseline by removing obsolete advisory ignore `RUSTSEC-2025-0134` from `deny.toml` after verifying `rustls-pemfile` is no longer in the dependency graph; `RUSTSEC-2024-0436` remains temporarily ignored while `paste` stays transitive.
 - Fixed dependency/security policy alignment by adding explicit GPL license metadata to workspace crates, allowing required transitive licenses in `deny.toml`, and pinning local path dependency versions to satisfy wildcard-ban checks.
 - Fixed the `policy-checks` GitHub Actions workflow to invoke the official `rhysd/actionlint` installer script with the correct positional arguments (`latest <dir>`) in a writable runner-local bin directory exported to `PATH`.
 - Fixed policy verification portability by installing `ripgrep` in the GitHub Actions runner and adding `grep` fallbacks in shell-quality and task-registry policy scripts when `rg` is unavailable.
