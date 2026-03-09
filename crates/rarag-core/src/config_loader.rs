@@ -3,7 +3,9 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
-use crate::config::{AppConfig, CliConfig, DaemonConfig, McpConfig};
+use crate::config::{
+    AppConfig, CliConfig, DaemonConfig, DocumentSourceRule, HistoryConfig, McpConfig,
+};
 
 pub fn load_app_config(explicit_path: Option<&Path>) -> Result<AppConfig, String> {
     load_app_config_with_source(explicit_path).map(|loaded| loaded.config)
@@ -270,6 +272,39 @@ fn apply_overrides(config: &mut AppConfig, overrides: PartialAppConfig) {
         }
     }
 
+    if let Some(document_sources) = overrides.document_sources
+        && let Some(rules) = document_sources.rules
+    {
+        let resolved: Vec<_> = rules
+            .into_iter()
+            .map(|rule| {
+                DocumentSourceRule::new(
+                    rule.path_glob,
+                    rule.kind,
+                    rule.parser,
+                    rule.weight.unwrap_or(1.0),
+                )
+            })
+            .collect();
+        if !resolved.is_empty() {
+            config.document_sources.rules = resolved;
+        }
+    }
+
+    if let Some(history) = overrides.history {
+        let mut resolved = config.history.clone();
+        if let Some(enabled) = history.enabled {
+            resolved.enabled = enabled;
+        }
+        if let Some(max_commits) = history.max_commits {
+            resolved.max_commits = max_commits.max(1);
+        }
+        config.history = HistoryConfig {
+            enabled: resolved.enabled,
+            max_commits: resolved.max_commits,
+        };
+    }
+
     if let Some(cli) = overrides.cli {
         let mut resolved = config.cli.take().unwrap_or(CliConfig {
             default_json: false,
@@ -310,6 +345,8 @@ struct PartialAppConfig {
     embeddings: Option<PartialEmbeddingProviderConfig>,
     retrieval: Option<PartialRetrievalConfig>,
     observability: Option<PartialObservabilityConfig>,
+    document_sources: Option<PartialDocumentSourcesConfig>,
+    history: Option<PartialHistoryConfig>,
     cli: Option<PartialCliConfig>,
     daemon: Option<PartialDaemonConfig>,
     mcp: Option<PartialMcpConfig>,
@@ -408,6 +445,25 @@ struct PartialNeighborhoodWeightsConfig {
 struct PartialObservabilityConfig {
     enabled: Option<bool>,
     verbosity: Option<crate::config::ObservabilityVerbosity>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct PartialDocumentSourcesConfig {
+    rules: Option<Vec<PartialDocumentSourceRule>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PartialDocumentSourceRule {
+    path_glob: String,
+    kind: crate::config::DocumentSourceKind,
+    parser: crate::config::DocumentSourceParser,
+    weight: Option<f32>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct PartialHistoryConfig {
+    enabled: Option<bool>,
+    max_commits: Option<usize>,
 }
 
 #[derive(Debug, Deserialize, Default)]

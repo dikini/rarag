@@ -32,6 +32,10 @@ pub struct QueryPayload {
     pub limit: Option<usize>,
     #[serde(default)]
     pub changed_paths: Vec<String>,
+    #[serde(default)]
+    pub include_history: bool,
+    pub history_max_nodes: Option<usize>,
+    pub eval_task_id: Option<String>,
 }
 
 impl QueryPayload {
@@ -54,6 +58,15 @@ impl QueryPayload {
         if !self.changed_paths.is_empty() {
             request =
                 request.with_worktree_changes(WorktreeChanges::from_paths(self.changed_paths));
+        }
+        if self.include_history {
+            request = request.with_history(true);
+        }
+        if let Some(history_max_nodes) = self.history_max_nodes {
+            request = request.with_history_max_nodes(history_max_nodes);
+        }
+        if let Some(eval_task_id) = self.eval_task_id {
+            request = request.with_eval_task_id(eval_task_id);
         }
         request
     }

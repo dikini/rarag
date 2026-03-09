@@ -9,6 +9,8 @@ pub enum ChunkKind {
     TestFunction,
     ExampleFile,
     Doctest,
+    DocumentBlock,
+    TaskRow,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

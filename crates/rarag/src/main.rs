@@ -120,7 +120,7 @@ fn print_help() {
         "  rarag index status [--socket <path>] [--snapshot <id> | --worktree <path>] [--json]"
     );
     println!(
-        "  rarag query --mode <mode> --text <query> [--symbol-path <path>] [--snapshot <id> | --worktree <path>] [--changed-path <path>]... [--limit <n>] [--socket <path>] [--json] [--dry-run-request]"
+        "  rarag query --mode <mode> --text <query> [--symbol-path <path>] [--snapshot <id> | --worktree <path>] [--changed-path <path>]... [--include-history] [--history-max-nodes <n>] [--limit <n>] [--socket <path>] [--json] [--dry-run-request]"
     );
     println!(
         "  rarag symbol --text <query> [--symbol-path <path>] [--snapshot <id> | --worktree <path>] [--changed-path <path>]... [--limit <n>] [--socket <path>] [--json] [--dry-run-request]"

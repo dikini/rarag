@@ -1,7 +1,8 @@
 use crate::chunking::Chunk;
 use crate::metadata::{
-    CandidateObservationRecord, ChunkRecord, EdgeRecord, IndexingRunRecord, QueryAuditRecord,
-    QueryObservationRecord, SnapshotRecord,
+    CandidateObservationRecord, ChunkRecord, DocumentBlockRecord, EdgeRecord, HistoryNodeRecord,
+    IndexingRunRecord, LineageEdgeRecord, QueryAuditRecord, QueryObservationRecord,
+    SnapshotRecord,
 };
 use crate::semantic::SemanticEdge;
 use crate::snapshot::SnapshotKey;
@@ -183,6 +184,177 @@ impl SnapshotStore {
         Ok(edges)
     }
 
+    pub async fn replace_document_blocks(
+        &self,
+        snapshot_id: &str,
+        blocks: &[DocumentBlockRecord],
+    ) -> Result<(), String> {
+        self.connection
+            .execute("DELETE FROM document_blocks WHERE snapshot_id = ?1", [snapshot_id])
+            .await
+            .map_err(|err| err.to_string())?;
+        for block in blocks {
+            let heading_path =
+                encode_string_list(&block.heading_path).map_err(|err| err.to_string())?;
+            self.connection
+                .execute(
+                    "INSERT INTO document_blocks (block_id, snapshot_id, file_path, document_kind, parser, heading_path, start_line, end_line, text) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                    (
+                        block.block_id.as_str(),
+                        snapshot_id,
+                        block.file_path.as_str(),
+                        block.document_kind.as_str(),
+                        block.parser.as_str(),
+                        heading_path.as_str(),
+                        i64::from(block.start_line),
+                        i64::from(block.end_line),
+                        block.text.as_str(),
+                    ),
+                )
+                .await
+                .map_err(|err| err.to_string())?;
+        }
+        Ok(())
+    }
+
+    pub async fn load_document_blocks(
+        &self,
+        snapshot_id: &str,
+    ) -> Result<Vec<DocumentBlockRecord>, String> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT block_id, snapshot_id, file_path, document_kind, parser, heading_path, start_line, end_line, text FROM document_blocks WHERE snapshot_id = ?1 ORDER BY file_path, start_line, block_id",
+                [snapshot_id],
+            )
+            .await
+            .map_err(|err| err.to_string())?;
+        let mut blocks = Vec::new();
+        while let Some(row) = rows.next().await.map_err(|err| err.to_string())? {
+            blocks.push(DocumentBlockRecord {
+                block_id: text_at(&row, 0)?,
+                snapshot_id: text_at(&row, 1)?,
+                file_path: text_at(&row, 2)?,
+                document_kind: text_at(&row, 3)?,
+                parser: text_at(&row, 4)?,
+                heading_path: decode_string_list(&text_at(&row, 5)?)
+                    .map_err(|err| err.to_string())?,
+                start_line: u32_at(&row, 6)?,
+                end_line: u32_at(&row, 7)?,
+                text: text_at(&row, 8)?,
+            });
+        }
+        Ok(blocks)
+    }
+
+    pub async fn replace_history_nodes(
+        &self,
+        snapshot_id: &str,
+        nodes: &[HistoryNodeRecord],
+    ) -> Result<(), String> {
+        self.connection
+            .execute("DELETE FROM history_nodes WHERE snapshot_id = ?1", [snapshot_id])
+            .await
+            .map_err(|err| err.to_string())?;
+        for node in nodes {
+            self.connection
+                .execute(
+                    "INSERT INTO history_nodes (node_id, snapshot_id, node_kind, subject, summary) VALUES (?1, ?2, ?3, ?4, ?5)",
+                    (
+                        node.node_id.as_str(),
+                        snapshot_id,
+                        node.node_kind.as_str(),
+                        node.subject.as_deref(),
+                        node.summary.as_str(),
+                    ),
+                )
+                .await
+                .map_err(|err| err.to_string())?;
+        }
+        Ok(())
+    }
+
+    pub async fn load_history_nodes(
+        &self,
+        snapshot_id: &str,
+    ) -> Result<Vec<HistoryNodeRecord>, String> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT node_id, snapshot_id, node_kind, subject, summary FROM history_nodes WHERE snapshot_id = ?1 ORDER BY node_kind, node_id",
+                [snapshot_id],
+            )
+            .await
+            .map_err(|err| err.to_string())?;
+        let mut nodes = Vec::new();
+        while let Some(row) = rows.next().await.map_err(|err| err.to_string())? {
+            nodes.push(HistoryNodeRecord {
+                node_id: text_at(&row, 0)?,
+                snapshot_id: text_at(&row, 1)?,
+                node_kind: text_at(&row, 2)?,
+                subject: optional_text_at(&row, 3)?,
+                summary: text_at(&row, 4)?,
+            });
+        }
+        Ok(nodes)
+    }
+
+    pub async fn replace_lineage_edges(
+        &self,
+        snapshot_id: &str,
+        edges: &[LineageEdgeRecord],
+    ) -> Result<(), String> {
+        self.connection
+            .execute("DELETE FROM lineage_edges WHERE snapshot_id = ?1", [snapshot_id])
+            .await
+            .map_err(|err| err.to_string())?;
+        for edge in edges {
+            self.connection
+                .execute(
+                    "INSERT INTO lineage_edges (edge_id, snapshot_id, from_node_id, to_node_id, edge_kind, evidence, confidence) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    (
+                        edge.edge_id.as_str(),
+                        snapshot_id,
+                        edge.from_node_id.as_str(),
+                        edge.to_node_id.as_str(),
+                        edge.edge_kind.as_str(),
+                        edge.evidence.as_deref(),
+                        f64::from(edge.confidence),
+                    ),
+                )
+                .await
+                .map_err(|err| err.to_string())?;
+        }
+        Ok(())
+    }
+
+    pub async fn load_lineage_edges(
+        &self,
+        snapshot_id: &str,
+    ) -> Result<Vec<LineageEdgeRecord>, String> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT edge_id, snapshot_id, from_node_id, to_node_id, edge_kind, evidence, confidence FROM lineage_edges WHERE snapshot_id = ?1 ORDER BY edge_kind, edge_id",
+                [snapshot_id],
+            )
+            .await
+            .map_err(|err| err.to_string())?;
+        let mut edges = Vec::new();
+        while let Some(row) = rows.next().await.map_err(|err| err.to_string())? {
+            edges.push(LineageEdgeRecord {
+                edge_id: text_at(&row, 0)?,
+                snapshot_id: text_at(&row, 1)?,
+                from_node_id: text_at(&row, 2)?,
+                to_node_id: text_at(&row, 3)?,
+                edge_kind: text_at(&row, 4)?,
+                evidence: optional_text_at(&row, 5)?,
+                confidence: f32_at(&row, 6)?,
+            });
+        }
+        Ok(edges)
+    }
+
     pub async fn record_query_audit(&self, record: QueryAuditRecord) -> Result<(), String> {
         self.connection
             .execute(
@@ -209,13 +381,15 @@ impl SnapshotStore {
         let changed_paths_json =
             encode_string_list(&record.changed_paths).map_err(|err| err.to_string())?;
         let warnings_json = encode_string_list(&record.warnings).map_err(|err| err.to_string())?;
+        let evidence_coverage_json = encode_string_list(&record.evidence_class_coverage)
+            .map_err(|err| err.to_string())?;
         let tx = self
             .connection
             .unchecked_transaction()
             .await
             .map_err(|err| err.to_string())?;
         tx.execute(
-                "INSERT INTO query_observations (observation_id, snapshot_id, query_mode, query_text, symbol_path, changed_paths, warnings, result_count, retrieval_config_json, observability_enabled, observability_verbosity) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                "INSERT INTO query_observations (observation_id, snapshot_id, query_mode, query_text, symbol_path, changed_paths, warnings, result_count, eval_task_id, evidence_class_coverage, retrieval_config_json, observability_enabled, observability_verbosity) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
                 (
                     record.observation_id.as_str(),
                     record.snapshot_id.as_str(),
@@ -225,6 +399,8 @@ impl SnapshotStore {
                     changed_paths_json.as_str(),
                     warnings_json.as_str(),
                     i64::try_from(record.result_count).map_err(|err| err.to_string())?,
+                    record.eval_task_id.as_deref(),
+                    evidence_coverage_json.as_str(),
                     retrieval_json.as_str(),
                     if record.observability.enabled { 1_i64 } else { 0_i64 },
                     record.observability.verbosity.to_string(),
@@ -273,7 +449,7 @@ impl SnapshotStore {
         let mut rows = self
             .connection
             .query(
-                "SELECT observation_id, snapshot_id, query_mode, query_text, symbol_path, changed_paths, warnings, result_count, retrieval_config_json, observability_enabled, observability_verbosity FROM query_observations WHERE snapshot_id = ?1 ORDER BY recorded_at, observation_id",
+                "SELECT observation_id, snapshot_id, query_mode, query_text, symbol_path, changed_paths, warnings, result_count, eval_task_id, evidence_class_coverage, retrieval_config_json, observability_enabled, observability_verbosity FROM query_observations WHERE snapshot_id = ?1 ORDER BY recorded_at, observation_id",
                 [snapshot_id],
             )
             .await
@@ -281,9 +457,9 @@ impl SnapshotStore {
 
         let mut observations = Vec::new();
         while let Some(row) = rows.next().await.map_err(|err| err.to_string())? {
-            let retrieval_json = text_at(&row, 8)?;
+            let retrieval_json = text_at(&row, 10)?;
             let retrieval = serde_json::from_str(&retrieval_json).map_err(|err| err.to_string())?;
-            let enabled: i64 = row.get(9).map_err(|err| err.to_string())?;
+            let enabled: i64 = row.get(11).map_err(|err| err.to_string())?;
             observations.push(QueryObservationRecord {
                 observation_id: text_at(&row, 0)?,
                 snapshot_id: text_at(&row, 1)?,
@@ -294,10 +470,13 @@ impl SnapshotStore {
                     .map_err(|err| err.to_string())?,
                 warnings: decode_string_list(&text_at(&row, 6)?).map_err(|err| err.to_string())?,
                 result_count: u64_at(&row, 7)?,
+                eval_task_id: optional_text_at(&row, 8)?,
+                evidence_class_coverage: decode_string_list(&text_at(&row, 9)?)
+                    .map_err(|err| err.to_string())?,
                 retrieval,
                 observability: crate::config::ObservabilityConfig {
                     enabled: enabled != 0,
-                    verbosity: text_at(&row, 10)?.parse().map_err(|err: String| err)?,
+                    verbosity: text_at(&row, 12)?.parse().map_err(|err: String| err)?,
                 },
             });
         }

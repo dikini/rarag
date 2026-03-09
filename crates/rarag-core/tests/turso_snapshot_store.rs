@@ -6,8 +6,8 @@ use tokio::runtime::Runtime;
 
 use rarag_core::config::{ObservabilityConfig, ObservabilityVerbosity, RetrievalConfig};
 use rarag_core::metadata::{
-    CandidateObservationRecord, IndexingRunRecord, QueryAuditRecord, QueryObservationRecord,
-    SnapshotStore,
+    CandidateObservationRecord, DocumentBlockRecord, HistoryNodeRecord, IndexingRunRecord,
+    LineageEdgeRecord, QueryAuditRecord, QueryObservationRecord, SnapshotStore,
 };
 
 fn sample_snapshot(worktree_root: &str) -> SnapshotKey {
@@ -322,6 +322,300 @@ fn record_query_observation_is_atomic_for_candidate_failures() {
                 loaded_candidates.is_empty(),
                 "candidate rows leaked on failure"
             );
+        })
+    });
+}
+
+#[test]
+fn document_and_history_rows_roundtrip_without_cross_snapshot_leakage() {
+    with_runtime(|runtime| {
+        runtime.block_on(async {
+            let dir = tempdir().expect("tempdir");
+            let store = SnapshotStore::open_local(&db_path(dir.path()))
+                .await
+                .expect("open local db");
+            let alpha = store
+                .create_or_get_snapshot(sample_snapshot("/repo/.worktrees/doc-alpha"))
+                .await
+                .expect("create alpha snapshot");
+            let beta = store
+                .create_or_get_snapshot(sample_snapshot("/repo/.worktrees/doc-beta"))
+                .await
+                .expect("create beta snapshot");
+
+            store
+                .replace_document_blocks(
+                    &alpha.id,
+                    &[DocumentBlockRecord::new(
+                        "doc-1",
+                        alpha.id.clone(),
+                        "docs/specs/repository-rag-architecture.md",
+                        "spec",
+                        "markdown",
+                        vec!["Repository RAG".to_string()],
+                        1,
+                        12,
+                        "Canonical behavior.",
+                    )],
+                )
+                .await
+                .expect("write alpha document block");
+            store
+                .replace_document_blocks(
+                    &beta.id,
+                    &[DocumentBlockRecord::new(
+                        "doc-2",
+                        beta.id.clone(),
+                        "docs/plans/future.md",
+                        "plan",
+                        "markdown",
+                        vec!["Future".to_string()],
+                        1,
+                        9,
+                        "Future work.",
+                    )],
+                )
+                .await
+                .expect("write beta document block");
+
+            store
+                .replace_history_nodes(
+                    &alpha.id,
+                    &[HistoryNodeRecord::new(
+                        "hist-1",
+                        alpha.id.clone(),
+                        "commit",
+                        Some("abc123".to_string()),
+                        "Introduced retrieval observation pipeline",
+                    )],
+                )
+                .await
+                .expect("write alpha history");
+            store
+                .replace_lineage_edges(
+                    &alpha.id,
+                    &[LineageEdgeRecord::new(
+                        "line-1",
+                        alpha.id.clone(),
+                        "hist-1",
+                        "doc-1",
+                        "introduced_invariant",
+                        Some("CHANGELOG entry".to_string()),
+                        0.75,
+                    )],
+                )
+                .await
+                .expect("write alpha lineage");
+
+            let alpha_docs = store
+                .load_document_blocks(&alpha.id)
+                .await
+                .expect("load alpha docs");
+            let beta_docs = store
+                .load_document_blocks(&beta.id)
+                .await
+                .expect("load beta docs");
+            let alpha_history = store
+                .load_history_nodes(&alpha.id)
+                .await
+                .expect("load alpha history");
+            let beta_history = store
+                .load_history_nodes(&beta.id)
+                .await
+                .expect("load beta history");
+            let alpha_edges = store
+                .load_lineage_edges(&alpha.id)
+                .await
+                .expect("load alpha edges");
+            let beta_edges = store
+                .load_lineage_edges(&beta.id)
+                .await
+                .expect("load beta edges");
+
+            assert_eq!(alpha_docs.len(), 1);
+            assert_eq!(beta_docs.len(), 1);
+            assert_eq!(alpha_docs[0].block_id, "doc-1");
+            assert_eq!(beta_docs[0].block_id, "doc-2");
+            assert_eq!(alpha_history.len(), 1);
+            assert!(beta_history.is_empty());
+            assert_eq!(alpha_edges.len(), 1);
+            assert!(beta_edges.is_empty());
+        })
+    });
+}
+
+#[test]
+fn stores_document_blocks_history_nodes_and_observations() {
+    with_runtime(|runtime| {
+        runtime.block_on(async {
+            let dir = tempdir().expect("tempdir");
+            let store = SnapshotStore::open_local(&db_path(dir.path()))
+                .await
+                .expect("open local db");
+            let snapshot = store
+                .create_or_get_snapshot(sample_snapshot("/repo/.worktrees/doc-history"))
+                .await
+                .expect("create snapshot");
+
+            store
+                .replace_document_blocks(
+                    &snapshot.id,
+                    &[DocumentBlockRecord::new(
+                        "doc-obs",
+                        snapshot.id.clone(),
+                        "docs/ops/systemd-user.md",
+                        "ops",
+                        "markdown",
+                        vec!["Reload".to_string()],
+                        10,
+                        33,
+                        "Use systemctl --user reload or SIGHUP.",
+                    )],
+                )
+                .await
+                .expect("write document");
+            store
+                .replace_history_nodes(
+                    &snapshot.id,
+                    &[HistoryNodeRecord::new(
+                        "hist-obs",
+                        snapshot.id.clone(),
+                        "change",
+                        Some("def456".to_string()),
+                        "Added daemon config reload",
+                    )],
+                )
+                .await
+                .expect("write history");
+
+            let observation = QueryObservationRecord::new(
+                "obs-doc-history",
+                snapshot.id.clone(),
+                "blast-radius",
+                "how was daemon reload introduced",
+                Some("rarag::daemon::reload".to_string()),
+                vec!["crates/raragd/src/server.rs".to_string()],
+                Vec::new(),
+                1,
+                RetrievalConfig::default(),
+                ObservabilityConfig {
+                    enabled: true,
+                    verbosity: ObservabilityVerbosity::Summary,
+                },
+            )
+            .with_eval(
+                Some("reload-archaeology".to_string()),
+                vec!["code".to_string(), "document".to_string(), "history".to_string()],
+            );
+            let candidates = vec![CandidateObservationRecord::new(
+                "obs-doc-history",
+                "doc-obs",
+                "DocumentBlock",
+                None,
+                "docs/ops/systemd-user.md",
+                vec!["lexical_bm25".to_string()],
+                vec!["ops".to_string()],
+                1,
+                true,
+                false,
+                4.0,
+                0.2,
+                0.0,
+                4.2,
+            )];
+
+            store
+                .record_query_observation(observation, &candidates)
+                .await
+                .expect("record observation");
+
+            let loaded_docs = store
+                .load_document_blocks(&snapshot.id)
+                .await
+                .expect("load docs");
+            let loaded_history = store
+                .load_history_nodes(&snapshot.id)
+                .await
+                .expect("load history");
+            let loaded_obs = store
+                .load_query_observations(&snapshot.id)
+                .await
+                .expect("load observations");
+
+            assert_eq!(loaded_docs.len(), 1);
+            assert_eq!(loaded_history.len(), 1);
+            assert_eq!(loaded_obs.len(), 1);
+            assert_eq!(
+                loaded_obs[0].eval_task_id.as_deref(),
+                Some("reload-archaeology")
+            );
+            assert_eq!(
+                loaded_obs[0].evidence_class_coverage,
+                vec![
+                    "code".to_string(),
+                    "document".to_string(),
+                    "history".to_string()
+                ]
+            );
+        })
+    });
+}
+
+#[test]
+fn stores_history_nodes_and_lineage_edges() {
+    with_runtime(|runtime| {
+        runtime.block_on(async {
+            let dir = tempdir().expect("tempdir");
+            let store = SnapshotStore::open_local(&db_path(dir.path()))
+                .await
+                .expect("open local db");
+            let snapshot = store
+                .create_or_get_snapshot(sample_snapshot("/repo/.worktrees/history-store"))
+                .await
+                .expect("create snapshot");
+
+            store
+                .replace_history_nodes(
+                    &snapshot.id,
+                    &[HistoryNodeRecord::new(
+                        "hist-1",
+                        snapshot.id.clone(),
+                        "commit",
+                        Some("abc123".to_string()),
+                        "Introduced reload behavior",
+                    )],
+                )
+                .await
+                .expect("write history");
+            store
+                .replace_lineage_edges(
+                    &snapshot.id,
+                    &[LineageEdgeRecord::new(
+                        "line-1",
+                        snapshot.id.clone(),
+                        "hist-1",
+                        "hist-1",
+                        "followed_by",
+                        Some("same commit lineage anchor".to_string()),
+                        1.0,
+                    )],
+                )
+                .await
+                .expect("write lineage");
+
+            let history = store
+                .load_history_nodes(&snapshot.id)
+                .await
+                .expect("load history");
+            let edges = store
+                .load_lineage_edges(&snapshot.id)
+                .await
+                .expect("load lineage");
+
+            assert_eq!(history.len(), 1);
+            assert_eq!(edges.len(), 1);
+            assert_eq!(history[0].node_id, "hist-1");
+            assert_eq!(edges[0].edge_id, "line-1");
         })
     });
 }

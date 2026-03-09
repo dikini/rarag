@@ -6,11 +6,16 @@ use ra_ap_syntax::{
     ast::{self, HasAttrs, HasModuleItem, HasName},
 };
 
+use crate::chunking::{chunk_csv_rows, chunk_markdown};
 use crate::chunking::types::{Chunk, ChunkKind, SourceSpan};
+use crate::config::{
+    DocumentSourceParser, DocumentSourceRule, DocumentSourcesConfig,
+};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct RustChunker {
     max_body_bytes: usize,
+    document_sources: DocumentSourcesConfig,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,7 +53,20 @@ struct ChunkMetadata {
 
 impl RustChunker {
     pub fn new(max_body_bytes: usize) -> Self {
-        Self { max_body_bytes }
+        Self {
+            max_body_bytes,
+            document_sources: DocumentSourcesConfig::default(),
+        }
+    }
+
+    pub fn new_with_document_sources(
+        max_body_bytes: usize,
+        document_sources: DocumentSourcesConfig,
+    ) -> Self {
+        Self {
+            max_body_bytes,
+            document_sources,
+        }
     }
 
     pub fn chunk_workspace(&self, root: &Path) -> Result<Vec<Chunk>, String> {
@@ -87,6 +105,7 @@ impl RustChunker {
                 )?;
             }
         }
+        collect_document_chunks(root, &crate_name, &self.document_sources, &mut chunks)?;
 
         Ok(chunks)
     }
@@ -568,6 +587,8 @@ fn chunk_kind_label(kind: &ChunkKind) -> &'static str {
         ChunkKind::TestFunction => "test",
         ChunkKind::ExampleFile => "example",
         ChunkKind::Doctest => "doctest",
+        ChunkKind::DocumentBlock => "document",
+        ChunkKind::TaskRow => "task-row",
     }
 }
 
@@ -683,5 +704,140 @@ fn collect_rust_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String
         }
     }
 
+    Ok(())
+}
+
+fn collect_document_chunks(
+    root: &Path,
+    crate_name: &str,
+    document_sources: &DocumentSourcesConfig,
+    chunks: &mut Vec<Chunk>,
+) -> Result<(), String> {
+    let mut files = Vec::new();
+    collect_document_files(root, &mut files)?;
+    files.sort();
+    for file_path in files {
+        let relative = file_path
+            .strip_prefix(root)
+            .map_err(|err| err.to_string())?
+            .to_string_lossy()
+            .to_string();
+        let Some(rule) = classify_document_source(&relative, &document_sources.rules) else {
+            continue;
+        };
+        let body = fs::read_to_string(&file_path).map_err(|err| err.to_string())?;
+        let rank_weight_marker = format!("doc_rank_weight:{:.3}", rule.weight);
+        match rule.parser {
+            DocumentSourceParser::Markdown => {
+                for section in chunk_markdown(&file_path, &body, rule.kind.as_str())? {
+                    let heading = if section.heading_path.is_empty() {
+                        "root".to_string()
+                    } else {
+                        section.heading_path.join("::")
+                    };
+                    let symbol_path = format!("{crate_name}::docs::{heading}");
+                    chunks.push(Chunk {
+                        id: section.id,
+                        kind: ChunkKind::DocumentBlock,
+                        file_path: file_path.clone(),
+                        span: SourceSpan {
+                            start_byte: section.start_line,
+                            end_byte: section.end_line,
+                        },
+                        symbol_path: Some(symbol_path),
+                        symbol_name: section.heading_path.last().cloned(),
+                        owning_symbol_header: None,
+                        docs_text: None,
+                        signature_text: None,
+                        parent_symbol_path: Some(format!("{crate_name}::docs")),
+                        retrieval_markers: vec![
+                            "document".to_string(),
+                            rule.kind.as_str().to_string(),
+                            rank_weight_marker.clone(),
+                        ],
+                        repository_state_hints: vec!["docs".to_string()],
+                        text: section.text,
+                    });
+                }
+            }
+            DocumentSourceParser::Csv => {
+                for row in chunk_csv_rows(&file_path, &body, rule.kind.as_str())? {
+                    let symbol_path = format!("{crate_name}::docs::tasks::row_{}", row.row_number);
+                    chunks.push(Chunk {
+                        id: row.id,
+                        kind: ChunkKind::TaskRow,
+                        file_path: file_path.clone(),
+                        span: SourceSpan {
+                            start_byte: row.row_number,
+                            end_byte: row.row_number,
+                        },
+                        symbol_path: Some(symbol_path),
+                        symbol_name: Some(format!("row_{}", row.row_number)),
+                        owning_symbol_header: None,
+                        docs_text: None,
+                        signature_text: None,
+                        parent_symbol_path: Some(format!("{crate_name}::docs::tasks")),
+                        retrieval_markers: vec![
+                            "document".to_string(),
+                            rule.kind.as_str().to_string(),
+                            rank_weight_marker.clone(),
+                        ],
+                        repository_state_hints: vec!["docs".to_string(), "tasks".to_string()],
+                        text: row.text,
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn classify_document_source(
+    relative_path: &str,
+    rules: &[DocumentSourceRule],
+) -> Option<DocumentSourceRule> {
+    rules
+        .iter()
+        .find(|rule| path_matches_glob(relative_path, &rule.path_glob))
+        .cloned()
+}
+
+fn path_matches_glob(path: &str, glob: &str) -> bool {
+    if let Some(prefix) = glob.strip_suffix("/**") {
+        return path.starts_with(prefix);
+    }
+    path == glob
+}
+
+fn collect_document_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
+    if !dir.exists() {
+        return Ok(());
+    }
+    for entry in fs::read_dir(dir).map_err(|err| err.to_string())? {
+        let entry = entry.map_err(|err| err.to_string())?;
+        let path = entry.path();
+        if path.is_dir() {
+            if path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| matches!(name, ".git" | "target"))
+            {
+                continue;
+            }
+            collect_document_files(&path, files)?;
+            continue;
+        }
+        let is_doc = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("md") || ext.eq_ignore_ascii_case("csv"));
+        let is_changelog = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name == "CHANGELOG.md");
+        if is_doc || is_changelog {
+            files.push(path);
+        }
+    }
     Ok(())
 }

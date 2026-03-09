@@ -101,11 +101,12 @@ fn query_mode_bias(
 ) -> f32 {
     match query_mode {
         QueryMode::UnderstandSymbol => {
-            if chunk.chunk_kind == "Symbol" {
+            let symbol_bias = if chunk.chunk_kind == "Symbol" {
                 weights.understand_symbol_symbol
             } else {
                 0.0
-            }
+            };
+            symbol_bias + document_normativity_bias(chunk)
         }
         QueryMode::ImplementAdjacent => {
             if chunk.chunk_kind == "BodyRegion" {
@@ -122,7 +123,9 @@ fn query_mode_bias(
             }
         }
         QueryMode::BlastRadius => {
-            if is_test_like(chunk) {
+            if chunk.chunk_kind == "HistoryNode" {
+                0.5
+            } else if is_test_like(chunk) {
                 weights.blast_radius_test_like
             } else {
                 weights.blast_radius_other
@@ -164,6 +167,60 @@ fn worktree_diff_bias(query_mode: QueryMode, weights: &RerankWeightsConfig) -> f
         QueryMode::FindExamples => weights.worktree_diff_find_examples,
         QueryMode::UnderstandSymbol => weights.worktree_diff_understand_symbol,
     }
+}
+
+fn document_normativity_bias(chunk: &ChunkRecord) -> f32 {
+    if !chunk
+        .retrieval_markers
+        .iter()
+        .any(|marker| marker == "document")
+    {
+        return 0.0;
+    }
+    if let Some(weight) = parse_document_rank_weight(chunk) {
+        return weight;
+    }
+    legacy_document_normativity_bias(chunk)
+}
+
+fn parse_document_rank_weight(chunk: &ChunkRecord) -> Option<f32> {
+    chunk
+        .retrieval_markers
+        .iter()
+        .find_map(|marker| marker.strip_prefix("doc_rank_weight:"))
+        .and_then(|raw| raw.parse::<f32>().ok())
+}
+
+fn legacy_document_normativity_bias(chunk: &ChunkRecord) -> f32 {
+    if chunk
+        .retrieval_markers
+        .iter()
+        .any(|marker| marker == "spec")
+    {
+        return 1.2;
+    }
+    if chunk
+        .retrieval_markers
+        .iter()
+        .any(|marker| marker == "ops" || marker == "integrations")
+    {
+        return 0.8;
+    }
+    if chunk
+        .retrieval_markers
+        .iter()
+        .any(|marker| marker == "plan")
+    {
+        return -0.2;
+    }
+    if chunk
+        .retrieval_markers
+        .iter()
+        .any(|marker| marker == "changelog")
+    {
+        return -0.4;
+    }
+    0.2
 }
 
 #[cfg(test)]
@@ -245,6 +302,76 @@ mod tests {
         );
 
         assert_eq!(items[0].item.chunk.chunk_kind, "BodyRegion");
+        assert!(items[0].item.score > items[1].item.score);
+    }
+
+    #[test]
+    fn document_rank_weight_marker_changes_order() {
+        let items = rerank_candidates(
+            "snapshot-1",
+            QueryMode::UnderstandSymbol,
+            &RerankWeightsConfig::default(),
+            &WorktreeChanges::default(),
+            vec![
+                Candidate {
+                    chunk: chunk(
+                        "plan-doc",
+                        "DocumentBlock",
+                        "docs/plans/future.md",
+                        &["document", "plan", "doc_rank_weight:2.0"],
+                    ),
+                    score: 1.0,
+                    evidence: vec!["lexical_bm25".to_string()],
+                },
+                Candidate {
+                    chunk: chunk(
+                        "spec-doc",
+                        "DocumentBlock",
+                        "docs/specs/current.md",
+                        &["document", "spec", "doc_rank_weight:0.1"],
+                    ),
+                    score: 1.0,
+                    evidence: vec!["lexical_bm25".to_string()],
+                },
+            ],
+        );
+
+        assert_eq!(items[0].item.chunk.chunk_id, "plan-doc");
+        assert!(items[0].item.score > items[1].item.score);
+    }
+
+    #[test]
+    fn legacy_document_markers_without_rank_weight_still_apply_bias() {
+        let items = rerank_candidates(
+            "snapshot-1",
+            QueryMode::UnderstandSymbol,
+            &RerankWeightsConfig::default(),
+            &WorktreeChanges::default(),
+            vec![
+                Candidate {
+                    chunk: chunk(
+                        "plan-doc",
+                        "DocumentBlock",
+                        "docs/plans/future.md",
+                        &["document", "plan"],
+                    ),
+                    score: 1.0,
+                    evidence: vec!["lexical_bm25".to_string()],
+                },
+                Candidate {
+                    chunk: chunk(
+                        "spec-doc",
+                        "DocumentBlock",
+                        "docs/specs/current.md",
+                        &["document", "spec"],
+                    ),
+                    score: 1.0,
+                    evidence: vec!["lexical_bm25".to_string()],
+                },
+            ],
+        );
+
+        assert_eq!(items[0].item.chunk.chunk_id, "spec-doc");
         assert!(items[0].item.score > items[1].item.score);
     }
 }

@@ -253,5 +253,7 @@ fn chunk_kind_name(kind: &ChunkKind) -> &'static str {
         ChunkKind::TestFunction => "test_function",
         ChunkKind::ExampleFile => "example_file",
         ChunkKind::Doctest => "doctest",
+        ChunkKind::DocumentBlock => "document_block",
+        ChunkKind::TaskRow => "task_row",
     }
 }

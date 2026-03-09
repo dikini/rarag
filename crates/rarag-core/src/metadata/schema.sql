@@ -68,6 +68,8 @@ CREATE TABLE IF NOT EXISTS query_observations (
     changed_paths TEXT NOT NULL DEFAULT '',
     warnings TEXT NOT NULL DEFAULT '',
     result_count INTEGER NOT NULL,
+    eval_task_id TEXT,
+    evidence_class_coverage TEXT NOT NULL DEFAULT '',
     retrieval_config_json TEXT NOT NULL,
     observability_enabled INTEGER NOT NULL,
     observability_verbosity TEXT NOT NULL,
@@ -92,4 +94,40 @@ CREATE TABLE IF NOT EXISTS candidate_observations (
     final_score REAL NOT NULL,
     PRIMARY KEY (observation_id, rank, chunk_id),
     FOREIGN KEY (observation_id) REFERENCES query_observations(observation_id)
+);
+
+CREATE TABLE IF NOT EXISTS document_blocks (
+    block_id TEXT NOT NULL,
+    snapshot_id TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    document_kind TEXT NOT NULL,
+    parser TEXT NOT NULL,
+    heading_path TEXT NOT NULL DEFAULT '',
+    start_line INTEGER NOT NULL,
+    end_line INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    PRIMARY KEY (snapshot_id, block_id),
+    FOREIGN KEY (snapshot_id) REFERENCES snapshots(snapshot_id)
+);
+
+CREATE TABLE IF NOT EXISTS history_nodes (
+    node_id TEXT NOT NULL,
+    snapshot_id TEXT NOT NULL,
+    node_kind TEXT NOT NULL,
+    subject TEXT,
+    summary TEXT NOT NULL,
+    PRIMARY KEY (snapshot_id, node_id),
+    FOREIGN KEY (snapshot_id) REFERENCES snapshots(snapshot_id)
+);
+
+CREATE TABLE IF NOT EXISTS lineage_edges (
+    edge_id TEXT NOT NULL,
+    snapshot_id TEXT NOT NULL,
+    from_node_id TEXT NOT NULL,
+    to_node_id TEXT NOT NULL,
+    edge_kind TEXT NOT NULL,
+    evidence TEXT,
+    confidence REAL NOT NULL,
+    PRIMARY KEY (snapshot_id, edge_id),
+    FOREIGN KEY (snapshot_id) REFERENCES snapshots(snapshot_id)
 );

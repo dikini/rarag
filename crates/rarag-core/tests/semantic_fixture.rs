@@ -19,6 +19,14 @@ fn fixture_root() -> PathBuf {
         .join("tests/fixtures/mini_repo")
 }
 
+fn compat_fixture_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|path| path.parent())
+        .expect("workspace root")
+        .join("tests/fixtures/compat_repo")
+}
+
 fn runtime() -> Runtime {
     Runtime::new().expect("tokio runtime")
 }
@@ -186,5 +194,72 @@ fn bounded_refactor_uses_impl_and_test_edges() {
                 .iter()
                 .any(|item| item.evidence.iter().any(|entry| entry == "worktree_diff"))
         );
+    });
+}
+
+#[test]
+fn mixed_code_and_doc_evidence_preserves_snapshot_boundary() {
+    runtime().block_on(async {
+        let dir = tempdir().expect("tempdir");
+        let metadata_path = dir.path().join("metadata.db");
+        let tantivy_dir = dir.path().join("tantivy");
+        let metadata = SnapshotStore::open_local(&metadata_path.display().to_string())
+            .await
+            .expect("open metadata store");
+        let snapshot_a = metadata
+            .create_or_get_snapshot(SnapshotKey::new(
+                "/repo",
+                "/repo/.worktrees/semantic-doc-a",
+                "abc123",
+                "x86_64-unknown-linux-gnu",
+                ["default"],
+                "dev",
+            ))
+            .await
+            .expect("create snapshot a");
+        let snapshot_b = metadata
+            .create_or_get_snapshot(SnapshotKey::new(
+                "/repo",
+                "/repo/.worktrees/semantic-doc-b",
+                "def456",
+                "x86_64-unknown-linux-gnu",
+                ["default"],
+                "dev",
+            ))
+            .await
+            .expect("create snapshot b");
+        let tantivy = TantivyChunkStore::open(&tantivy_dir).expect("open tantivy");
+        let lancedb = LanceDbPointStore::new_in_memory("memory://tests", "rarag_chunks", 4);
+        let provider = StaticEmbeddingProvider { dimensions: 4 };
+        let indexer = ChunkIndexer::new(&metadata, &tantivy, &lancedb, &provider);
+        let chunks = RustChunker::new(120)
+            .chunk_workspace(&compat_fixture_root())
+            .expect("chunk workspace");
+        indexer
+            .reindex_snapshot(&snapshot_a.id, &chunks)
+            .await
+            .expect("reindex snapshot a");
+        indexer
+            .reindex_snapshot(&snapshot_b.id, &chunks)
+            .await
+            .expect("reindex snapshot b");
+
+        let retriever = RepositoryRetriever::new(&metadata, &tantivy, &lancedb, &provider);
+        let response = retriever
+            .retrieve(
+                RetrievalRequest::new(
+                    snapshot_a.id.clone(),
+                    QueryMode::BoundedRefactor,
+                    "reload behavior docs and tests",
+                )
+                .with_limit(8),
+            )
+            .await
+            .expect("retrieve");
+
+        assert!(!response.items.is_empty());
+        assert!(response.items.iter().all(|item| item.snapshot_id == snapshot_a.id));
+        assert!(response.items.iter().any(|item| item.chunk.chunk_kind == "DocumentBlock"));
+        assert!(response.items.iter().any(|item| item.chunk.chunk_kind == "Symbol"));
     });
 }

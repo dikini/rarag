@@ -581,6 +581,169 @@ fn mcp_calls_omit_workflow_phase() {
 }
 
 #[test]
+fn history_queries_match_across_cli_and_mcp() {
+    let dir = tempdir().expect("tempdir");
+    let daemon_socket = dir.path().join("raragd.sock");
+    let mcp_socket = dir.path().join("rarag-mcp.sock");
+    let snapshot_worktree = "/repo/.worktrees/history-contract";
+
+    let mut daemon = spawn_server(
+        "raragd",
+        &[
+            "serve",
+            "--socket",
+            daemon_socket.to_str().expect("daemon socket"),
+            "--test-deterministic-embeddings",
+            "--test-memory-vector-store",
+        ],
+        &daemon_socket,
+    );
+    let _ = run_cli(&[
+        "index",
+        "--socket",
+        daemon_socket.to_str().expect("daemon socket"),
+        "--workspace-root",
+        fixture_root().to_str().expect("fixture root"),
+        "--repo-root",
+        "/repo",
+        "--worktree-root",
+        snapshot_worktree,
+        "--git-sha",
+        "abc123",
+        "--json",
+    ]);
+
+    let cli_stdout = run_cli(&[
+        "query",
+        "--socket",
+        daemon_socket.to_str().expect("daemon socket"),
+        "--worktree-root",
+        snapshot_worktree,
+        "--mode",
+        "blast-radius",
+        "--text",
+        "example_sum",
+        "--include-history",
+        "--history-max-nodes",
+        "2",
+        "--json",
+    ]);
+    let cli_json: Value = serde_json::from_str(&cli_stdout).expect("cli json");
+    let cli_count = cli_json["items"]
+        .as_array()
+        .map(|items| items.len())
+        .expect("cli items");
+
+    let mut mcp = spawn_server(
+        "rarag-mcp",
+        &[
+            "serve",
+            "--socket",
+            mcp_socket.to_str().expect("mcp socket"),
+            "--daemon-socket",
+            daemon_socket.to_str().expect("daemon socket"),
+        ],
+        &mcp_socket,
+    );
+    let mcp_response = mcp_request(
+        &mcp_socket,
+        serde_json::json!({
+            "kind": "call_tool",
+            "name": "rag_query",
+            "arguments": {
+                "worktree_root": snapshot_worktree,
+                "mode": "blast-radius",
+                "text": "example_sum",
+                "include_history": true,
+                "history_max_nodes": 2
+            }
+        }),
+    );
+    let mcp_count = mcp_response["result"]["items"]
+        .as_array()
+        .map(|items| items.len())
+        .expect("mcp items");
+
+    assert_eq!(cli_count, mcp_count);
+
+    let _ = daemon.kill();
+    let _ = daemon.wait();
+    let _ = mcp.kill();
+    let _ = mcp.wait();
+}
+
+#[test]
+fn mixed_history_and_present_state_query_roundtrip() {
+    let dir = tempdir().expect("tempdir");
+    let daemon_socket = dir.path().join("raragd.sock");
+    let mcp_socket = dir.path().join("rarag-mcp.sock");
+    let snapshot_worktree = "/repo/.worktrees/history-roundtrip";
+
+    let mut daemon = spawn_server(
+        "raragd",
+        &[
+            "serve",
+            "--socket",
+            daemon_socket.to_str().expect("daemon socket"),
+            "--test-deterministic-embeddings",
+            "--test-memory-vector-store",
+        ],
+        &daemon_socket,
+    );
+    let _ = run_cli(&[
+        "index",
+        "--socket",
+        daemon_socket.to_str().expect("daemon socket"),
+        "--workspace-root",
+        fixture_root().to_str().expect("fixture root"),
+        "--repo-root",
+        "/repo",
+        "--worktree-root",
+        snapshot_worktree,
+        "--git-sha",
+        "abc123",
+        "--json",
+    ]);
+
+    let mut mcp = spawn_server(
+        "rarag-mcp",
+        &[
+            "serve",
+            "--socket",
+            mcp_socket.to_str().expect("mcp socket"),
+            "--daemon-socket",
+            daemon_socket.to_str().expect("daemon socket"),
+        ],
+        &mcp_socket,
+    );
+    let mcp_response = mcp_request(
+        &mcp_socket,
+        serde_json::json!({
+            "kind": "call_tool",
+            "name": "rag_blast_radius",
+            "arguments": {
+                "worktree_root": snapshot_worktree,
+                "text": "example_sum",
+                "symbol_path": "mini_repo::example_sum",
+                "include_history": true,
+                "history_max_nodes": 3
+            }
+        }),
+    );
+    assert!(
+        mcp_response["result"]["items"]
+            .as_array()
+            .is_some_and(|items| !items.is_empty())
+    );
+    assert!(mcp_response["result"]["warnings"].is_array());
+
+    let _ = daemon.kill();
+    let _ = daemon.wait();
+    let _ = mcp.kill();
+    let _ = mcp.wait();
+}
+
+#[test]
 fn cli_and_mcp_support_reload_config() {
     let dir = tempdir().expect("tempdir");
     let daemon_socket = dir.path().join("raragd.sock");

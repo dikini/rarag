@@ -1,0 +1,20 @@
+[
+  {
+    "task_id": "reload-archaeology",
+    "revision": "abc123",
+    "query_mode": "blast-radius",
+    "query_text": "archaeology: changed doc_example_sum behavior in daemon server",
+    "symbol_path": "compat_repo::doc_example_sum",
+    "ideal": [
+      "history:h1",
+      "docs/specs/current-behavior.md"
+    ],
+    "acceptable": [
+      "docs/ops/reload.md",
+      "compat_repo::doc_example_sum"
+    ],
+    "distractors": [
+      "docs/plans/future-work.md"
+    ]
+  }
+]

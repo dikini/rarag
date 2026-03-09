@@ -35,6 +35,107 @@ pub struct ChunkRecord {
     pub text: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DocumentBlockRecord {
+    pub block_id: String,
+    pub snapshot_id: String,
+    pub file_path: String,
+    pub document_kind: String,
+    pub parser: String,
+    pub heading_path: Vec<String>,
+    pub start_line: u32,
+    pub end_line: u32,
+    pub text: String,
+}
+
+impl DocumentBlockRecord {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        block_id: impl Into<String>,
+        snapshot_id: impl Into<String>,
+        file_path: impl Into<String>,
+        document_kind: impl Into<String>,
+        parser: impl Into<String>,
+        heading_path: Vec<String>,
+        start_line: u32,
+        end_line: u32,
+        text: impl Into<String>,
+    ) -> Self {
+        Self {
+            block_id: block_id.into(),
+            snapshot_id: snapshot_id.into(),
+            file_path: file_path.into(),
+            document_kind: document_kind.into(),
+            parser: parser.into(),
+            heading_path,
+            start_line,
+            end_line,
+            text: text.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HistoryNodeRecord {
+    pub node_id: String,
+    pub snapshot_id: String,
+    pub node_kind: String,
+    pub subject: Option<String>,
+    pub summary: String,
+}
+
+impl HistoryNodeRecord {
+    pub fn new(
+        node_id: impl Into<String>,
+        snapshot_id: impl Into<String>,
+        node_kind: impl Into<String>,
+        subject: Option<String>,
+        summary: impl Into<String>,
+    ) -> Self {
+        Self {
+            node_id: node_id.into(),
+            snapshot_id: snapshot_id.into(),
+            node_kind: node_kind.into(),
+            subject,
+            summary: summary.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LineageEdgeRecord {
+    pub edge_id: String,
+    pub snapshot_id: String,
+    pub from_node_id: String,
+    pub to_node_id: String,
+    pub edge_kind: String,
+    pub evidence: Option<String>,
+    pub confidence: f32,
+}
+
+impl LineageEdgeRecord {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        edge_id: impl Into<String>,
+        snapshot_id: impl Into<String>,
+        from_node_id: impl Into<String>,
+        to_node_id: impl Into<String>,
+        edge_kind: impl Into<String>,
+        evidence: Option<String>,
+        confidence: f32,
+    ) -> Self {
+        Self {
+            edge_id: edge_id.into(),
+            snapshot_id: snapshot_id.into(),
+            from_node_id: from_node_id.into(),
+            to_node_id: to_node_id.into(),
+            edge_kind: edge_kind.into(),
+            evidence,
+            confidence,
+        }
+    }
+}
+
 impl ChunkRecord {
     pub fn from_chunk(snapshot_id: impl Into<String>, chunk: &Chunk) -> Self {
         Self {
@@ -141,6 +242,8 @@ pub struct QueryObservationRecord {
     pub changed_paths: Vec<String>,
     pub warnings: Vec<String>,
     pub result_count: u64,
+    pub eval_task_id: Option<String>,
+    pub evidence_class_coverage: Vec<String>,
     pub retrieval: RetrievalConfig,
     pub observability: ObservabilityConfig,
 }
@@ -168,9 +271,21 @@ impl QueryObservationRecord {
             changed_paths,
             warnings,
             result_count,
+            eval_task_id: None,
+            evidence_class_coverage: Vec::new(),
             retrieval,
             observability,
         }
+    }
+
+    pub fn with_eval(
+        mut self,
+        eval_task_id: Option<String>,
+        evidence_class_coverage: Vec<String>,
+    ) -> Self {
+        self.eval_task_id = eval_task_id;
+        self.evidence_class_coverage = evidence_class_coverage;
+        self
     }
 }
 

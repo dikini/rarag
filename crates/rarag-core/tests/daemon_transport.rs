@@ -133,6 +133,9 @@ fn requests_require_snapshot_or_unambiguous_worktree() {
         symbol_path: None,
         limit: None,
         changed_paths: Vec::new(),
+        include_history: false,
+        history_max_nodes: None,
+        eval_task_id: None,
     }
     .validate_locator()
     .expect_err("missing locator should fail");
@@ -180,6 +183,9 @@ fn daemon_roundtrip_serves_query_payload() {
             symbol_path: Some("mini_repo::example_sum".to_string()),
             limit: Some(4),
             changed_paths: Vec::new(),
+            include_history: false,
+            history_max_nodes: None,
+            eval_task_id: None,
         }),
     );
     match query_response {

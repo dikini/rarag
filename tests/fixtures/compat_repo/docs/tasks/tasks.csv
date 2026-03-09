@@ -1,0 +1,4 @@
+id,type,title,status
+TASK-1,plan,Implement docs ingestion,done
+TASK-2,design,Define history selectors,in_progress
+

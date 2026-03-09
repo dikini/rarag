@@ -41,6 +41,9 @@ pub struct RetrievalRequest {
     pub symbol_path: Option<String>,
     pub limit: usize,
     pub worktree_changes: WorktreeChanges,
+    pub include_history: bool,
+    pub history_max_nodes: Option<usize>,
+    pub eval_task_id: Option<String>,
 }
 
 impl RetrievalRequest {
@@ -56,6 +59,9 @@ impl RetrievalRequest {
             symbol_path: None,
             limit: query_mode.neighborhood_cap(),
             worktree_changes: WorktreeChanges::default(),
+            include_history: false,
+            history_max_nodes: None,
+            eval_task_id: None,
         }
     }
 
@@ -71,6 +77,21 @@ impl RetrievalRequest {
 
     pub fn with_worktree_changes(mut self, worktree_changes: WorktreeChanges) -> Self {
         self.worktree_changes = worktree_changes;
+        self
+    }
+
+    pub fn with_history(mut self, include_history: bool) -> Self {
+        self.include_history = include_history;
+        self
+    }
+
+    pub fn with_history_max_nodes(mut self, history_max_nodes: usize) -> Self {
+        self.history_max_nodes = Some(history_max_nodes.max(1));
+        self
+    }
+
+    pub fn with_eval_task_id(mut self, eval_task_id: impl Into<String>) -> Self {
+        self.eval_task_id = Some(eval_task_id.into());
         self
     }
 

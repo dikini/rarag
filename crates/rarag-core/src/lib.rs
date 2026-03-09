@@ -3,6 +3,7 @@ pub mod config;
 pub mod config_loader;
 pub mod daemon;
 pub mod embeddings;
+pub mod history;
 pub mod indexing;
 pub mod ipc;
 pub mod metadata;

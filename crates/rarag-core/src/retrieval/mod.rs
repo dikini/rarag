@@ -1,8 +1,9 @@
+mod eval;
 mod neighborhood;
 mod query;
 mod rerank;
 
-use crate::config::RetrievalConfig;
+use crate::config::{DocumentSourceRule, DocumentSourcesConfig, RetrievalConfig};
 use crate::config::{ObservabilityConfig, ObservabilityVerbosity};
 use crate::embeddings::EmbeddingProvider;
 use crate::indexing::{LanceDbPointStore, TantivyChunkStore};
@@ -11,6 +12,7 @@ use crate::metadata::{
 };
 use neighborhood::assemble_neighborhood;
 pub use query::{QueryMode, RetrievalRequest, RetrievalResponse, RetrievedChunk};
+pub use eval::{EvalTaskFixture, load_eval_task_fixtures};
 use rerank::{Candidate, RankedCandidate, rerank_candidates};
 
 pub struct RepositoryRetriever<'a, P> {
@@ -20,6 +22,7 @@ pub struct RepositoryRetriever<'a, P> {
     provider: &'a P,
     retrieval: RetrievalConfig,
     observability: ObservabilityConfig,
+    document_sources: DocumentSourcesConfig,
 }
 
 impl<'a, P> RepositoryRetriever<'a, P>
@@ -49,6 +52,26 @@ where
         retrieval: &RetrievalConfig,
         observability: &ObservabilityConfig,
     ) -> Self {
+        Self::new_with_full_settings(
+            metadata,
+            tantivy,
+            lancedb,
+            provider,
+            retrieval,
+            observability,
+            &DocumentSourcesConfig::default(),
+        )
+    }
+
+    pub fn new_with_full_settings(
+        metadata: &'a SnapshotStore,
+        tantivy: &'a TantivyChunkStore,
+        lancedb: &'a LanceDbPointStore,
+        provider: &'a P,
+        retrieval: &RetrievalConfig,
+        observability: &ObservabilityConfig,
+        document_sources: &DocumentSourcesConfig,
+    ) -> Self {
         Self {
             metadata,
             tantivy,
@@ -56,6 +79,7 @@ where
             provider,
             retrieval: retrieval.clone(),
             observability: observability.clone(),
+            document_sources: document_sources.clone(),
         }
     }
 
@@ -77,7 +101,8 @@ where
     }
 
     pub async fn retrieve(&self, request: RetrievalRequest) -> Result<RetrievalResponse, String> {
-        let all_chunks = self.metadata.load_chunks(&request.snapshot_id).await?;
+        let mut all_chunks = self.metadata.load_chunks(&request.snapshot_id).await?;
+        backfill_document_rank_weights(&mut all_chunks, &self.document_sources.rules);
         let all_edges = self.metadata.load_edges(&request.snapshot_id).await?;
         let mut warnings = Vec::new();
 
@@ -157,6 +182,13 @@ where
                 });
             }
         }
+        if request.include_history {
+            let history = self.history_candidates(&request).await?;
+            if history.is_empty() {
+                warnings.push("history selector requested but no history candidates were found".to_string());
+            }
+            candidates.extend(history);
+        }
 
         let ranked = rerank_candidates(
             &request.snapshot_id,
@@ -193,6 +225,10 @@ where
                 u64::try_from(items.len()).map_err(|err| err.to_string())?,
                 self.retrieval.clone(),
                 self.observability.clone(),
+            )
+            .with_eval(
+                request.eval_task_id.clone(),
+                evidence_class_coverage(&items),
             );
             let candidate_records =
                 observation_candidates(&observation_id, &ranked, request.effective_limit())?;
@@ -228,6 +264,119 @@ where
             )
             .await
     }
+
+    async fn history_candidates(&self, request: &RetrievalRequest) -> Result<Vec<Candidate>, String> {
+        let mut nodes = self.metadata.load_history_nodes(&request.snapshot_id).await?;
+        if nodes.is_empty() {
+            return Ok(Vec::new());
+        }
+        let edges = self.metadata.load_lineage_edges(&request.snapshot_id).await?;
+        let cap = request.history_max_nodes.unwrap_or(8).max(1);
+        if nodes.len() > cap {
+            nodes = nodes.split_off(nodes.len() - cap);
+        }
+        let query_terms: Vec<String> = request
+            .query_text
+            .split(|ch: char| !ch.is_alphanumeric() && ch != '_')
+            .filter(|term| !term.is_empty())
+            .map(|term| term.to_ascii_lowercase())
+            .collect();
+
+        Ok(nodes
+            .into_iter()
+            .map(|node| {
+                let summary_lower = node.summary.to_ascii_lowercase();
+                let overlaps = query_terms
+                    .iter()
+                    .filter(|term| summary_lower.contains(term.as_str()))
+                    .count() as f32;
+                let mut evidence = vec!["history_node".to_string()];
+                if edges
+                    .iter()
+                    .any(|edge| edge.from_node_id == node.node_id || edge.to_node_id == node.node_id)
+                {
+                    evidence.push("lineage_edge".to_string());
+                }
+                Candidate {
+                    chunk: crate::metadata::ChunkRecord {
+                        chunk_id: format!("history:{}", node.node_id),
+                        snapshot_id: request.snapshot_id.clone(),
+                        chunk_kind: "HistoryNode".to_string(),
+                        symbol_path: node.subject.clone(),
+                        symbol_name: node.subject.clone(),
+                        owning_symbol_header: None,
+                        docs_text: None,
+                        signature_text: None,
+                        parent_symbol_path: Some("history".to_string()),
+                        retrieval_markers: vec!["history".to_string()],
+                        repository_state_hints: vec!["history".to_string()],
+                        file_path: format!("history/{}", node.node_id),
+                        start_byte: 0,
+                        end_byte: 0,
+                        text: node.summary,
+                    },
+                    score: 6.0 + overlaps,
+                    evidence,
+                }
+            })
+            .collect())
+    }
+}
+
+fn backfill_document_rank_weights(chunks: &mut [crate::metadata::ChunkRecord], rules: &[DocumentSourceRule]) {
+    for chunk in chunks {
+        if !chunk
+            .retrieval_markers
+            .iter()
+            .any(|marker| marker == "document")
+        {
+            continue;
+        }
+        if chunk
+            .retrieval_markers
+            .iter()
+            .any(|marker| marker.starts_with("doc_rank_weight:"))
+        {
+            continue;
+        }
+        let Some(weight) = classify_doc_weight_from_path(&chunk.file_path, rules) else {
+            continue;
+        };
+        chunk.retrieval_markers
+            .push(format!("doc_rank_weight:{weight:.3}"));
+    }
+}
+
+fn classify_doc_weight_from_path(path: &str, rules: &[DocumentSourceRule]) -> Option<f32> {
+    let normalized = path.replace('\\', "/");
+    for rule in rules {
+        if path_matches_glob(&normalized, &rule.path_glob) {
+            return Some(rule.weight);
+        }
+    }
+    None
+}
+
+fn path_matches_glob(path: &str, glob: &str) -> bool {
+    if let Some(prefix) = glob.strip_suffix("/**") {
+        return path.starts_with(prefix);
+    }
+    path == glob
+}
+
+fn evidence_class_coverage(items: &[RetrievedChunk]) -> Vec<String> {
+    let mut classes = Vec::new();
+    for item in items {
+        let class = match item.chunk.chunk_kind.as_str() {
+            "DocumentBlock" | "TaskRow" => "document",
+            "HistoryNode" => "history",
+            _ => "code",
+        };
+        if !classes.iter().any(|existing| existing == class) {
+            classes.push(class.to_string());
+        }
+    }
+    classes
 }
 
 fn observation_id(snapshot_id: &str) -> String {

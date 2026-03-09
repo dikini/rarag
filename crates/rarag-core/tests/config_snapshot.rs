@@ -1,8 +1,8 @@
 use rarag_core::config::{
     AppConfig, CliConfig, DaemonConfig, EmbeddingProviderConfig, McpConfig,
-    NeighborhoodWeightsConfig, ObservabilityConfig, ObservabilityVerbosity, LanceDbConfig,
-    RerankWeightsConfig, RetrievalConfig, RuntimePaths, TantivyConfig, TursoConfig,
-    VectorDistanceMetric,
+    DocumentSourcesConfig, HistoryConfig, LanceDbConfig, NeighborhoodWeightsConfig,
+    ObservabilityConfig, ObservabilityVerbosity, RerankWeightsConfig, RetrievalConfig,
+    RuntimePaths, TantivyConfig, TursoConfig, VectorDistanceMetric,
 };
 use rarag_core::snapshot::SnapshotKey;
 
@@ -37,6 +37,8 @@ fn sample_config() -> AppConfig {
             neighborhood: NeighborhoodWeightsConfig::default(),
         },
         observability: ObservabilityConfig::default(),
+        document_sources: DocumentSourcesConfig::default(),
+        history: HistoryConfig::default(),
         cli: Some(CliConfig { default_json: true }),
         daemon: Some(DaemonConfig {
             socket_path: "/run/user/1000/rarag/raragd.sock".into(),
@@ -244,4 +246,68 @@ fn snapshot_key_roundtrips_to_json() {
 
     assert_eq!(decoded, key);
     assert_eq!(decoded.feature_set, vec!["default", "sqlite"]);
+}
+
+#[test]
+fn parses_document_history_and_doc_source_sections() {
+    let config: AppConfig = serde_json::from_value(serde_json::json!({
+        "runtime": {
+            "socket_path": "/run/user/1000/rarag/raragd.sock",
+            "state_root": "/tmp/rarag/state",
+            "cache_root": "/tmp/rarag/cache"
+        },
+        "turso": {
+            "database_url": "libsql://localhost",
+            "auth_token_env": "TURSO_AUTH_TOKEN"
+        },
+        "tantivy": {
+            "index_root": "/tmp/rarag/index"
+        },
+        "lancedb": {
+            "db_root": "/tmp/rarag/lancedb",
+            "table": "rarag_chunks",
+            "distance_metric": "cosine"
+        },
+        "embeddings": {
+            "base_url": "https://api.openai.com/v1",
+            "endpoint_path": "/embeddings",
+            "model": "text-embedding-3-small",
+            "api_key_env": "OPENAI_API_KEY",
+            "dimensions": 1536
+        },
+        "document_sources": {
+            "rules": [
+                {
+                    "path_glob": "docs/specs/**",
+                    "kind": "spec",
+                    "parser": "markdown",
+                    "weight": 1.5
+                },
+                {
+                    "path_glob": "docs/tasks/tasks.csv",
+                    "kind": "tasks-registry",
+                    "parser": "csv",
+                    "weight": 1.2
+                }
+            ]
+        },
+        "history": {
+            "enabled": true,
+            "max_commits": 200
+        }
+    }))
+    .expect("deserialize config with document/history sections");
+
+    assert_eq!(config.document_sources.rules.len(), 2);
+    assert_eq!(config.document_sources.rules[0].path_glob, "docs/specs/**");
+    assert_eq!(
+        config.document_sources.rules[1].kind.as_str(),
+        "tasks-registry"
+    );
+    assert_eq!(
+        config.document_sources.rules[1].parser.as_str(),
+        "csv"
+    );
+    assert!(config.history.enabled);
+    assert_eq!(config.history.max_commits, 200);
 }

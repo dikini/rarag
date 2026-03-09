@@ -166,6 +166,15 @@ fn parse_query_payload(args: &[String], force_blast_radius: bool) -> Result<Quer
             })
             .transpose()?,
         changed_paths: repeated_values(args, "--changed-path"),
+        include_history: args.iter().any(|arg| arg == "--include-history"),
+        history_max_nodes: option_value(args, "--history-max-nodes")
+            .map(|value| {
+                value
+                    .parse()
+                    .map_err(|err| format!("invalid --history-max-nodes: {err}"))
+            })
+            .transpose()?,
+        eval_task_id: option_value(args, "--eval-task-id"),
     })
 }
 
@@ -187,6 +196,15 @@ fn parse_named_query_payload(
             })
             .transpose()?,
         changed_paths: repeated_values(args, "--changed-path"),
+        include_history: args.iter().any(|arg| arg == "--include-history"),
+        history_max_nodes: option_value(args, "--history-max-nodes")
+            .map(|value| {
+                value
+                    .parse()
+                    .map_err(|err| format!("invalid --history-max-nodes: {err}"))
+            })
+            .transpose()?,
+        eval_task_id: option_value(args, "--eval-task-id"),
     })
 }
 

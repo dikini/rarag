@@ -1,6 +1,7 @@
 # Document, History, and Evaluation Foundations Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> Task Registry ID: `2026-03-09-doc-history-eval-foundations-impl`
 
 Goal: Implement the Stage 1 retrieval foundations for semantic documents, temporal/causal history, and task-based usefulness evaluation in `rarag`.
 Architecture: Extend the existing snapshot-scoped retrieval pipeline in `rarag-core` with document and history object families while keeping one merged candidate/rerank/assembly flow. Reuse Turso, Tantivy, LanceDB, and existing observability plumbing so evaluation measures the same evidence model later used by prompt/template and optimization work, and treat repo-specific document classes as defaults that can be overridden through shared TOML.

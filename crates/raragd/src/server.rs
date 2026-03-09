@@ -134,6 +134,8 @@ impl DaemonState {
         let loaded = load_app_config_with_source(self.config_source.as_deref())?;
         self.active_config.retrieval = loaded.config.retrieval;
         self.active_config.observability = loaded.config.observability;
+        self.active_config.document_sources = loaded.config.document_sources;
+        self.active_config.history = loaded.config.history;
         self.config_source = loaded.source_path;
         self.config_generation += 1;
         Ok(ReloadResponse {
@@ -152,7 +154,11 @@ impl DaemonState {
         max_body_bytes: usize,
     ) -> Result<IndexResponse, String> {
         let snapshot = self.metadata.create_or_get_snapshot(snapshot).await?;
-        let chunks = RustChunker::new(max_body_bytes).chunk_workspace(workspace_root)?;
+        let chunks = RustChunker::new_with_document_sources(
+            max_body_bytes,
+            self.active_config.document_sources.clone(),
+        )
+        .chunk_workspace(workspace_root)?;
         let indexer =
             ChunkIndexer::new(&self.metadata, &self.tantivy, &self.lancedb, &self.provider);
         let counts = indexer.reindex_snapshot(&snapshot.id, &chunks).await?;
@@ -178,13 +184,14 @@ impl DaemonState {
         };
 
         let request = payload.into_retrieval_request(snapshot_id);
-        let retriever = RepositoryRetriever::new_with_settings(
+        let retriever = RepositoryRetriever::new_with_full_settings(
             &self.metadata,
             &self.tantivy,
             &self.lancedb,
             &self.provider,
             &self.active_config.retrieval,
             &self.active_config.observability,
+            &self.active_config.document_sources,
         );
         match retriever.retrieve(request).await {
             Ok(response) => DaemonResponse::Query(response),

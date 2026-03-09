@@ -77,6 +77,9 @@ fn query_schema(mode_required: bool) -> Value {
             "text": { "type": "string" },
             "symbol_path": { "type": "string" },
             "limit": { "type": "integer" },
+            "include_history": { "type": "boolean" },
+            "history_max_nodes": { "type": "integer" },
+            "eval_task_id": { "type": "string" },
             "changed_paths": {
                 "type": "array",
                 "items": { "type": "string" }

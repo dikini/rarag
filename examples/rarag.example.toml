@@ -71,6 +71,52 @@ semantic_test_find_examples = 8.2
 enabled = false
 verbosity = "off"
 
+[history]
+enabled = true
+max_commits = 128
+
+[[document_sources.rules]]
+path_glob = "docs/specs/**"
+kind = "spec"
+parser = "markdown"
+weight = 1.8
+
+[[document_sources.rules]]
+path_glob = "docs/plans/**"
+kind = "plan"
+parser = "markdown"
+weight = 1.0
+
+[[document_sources.rules]]
+path_glob = "docs/ops/**"
+kind = "ops"
+parser = "markdown"
+weight = 1.5
+
+[[document_sources.rules]]
+path_glob = "docs/integrations/**"
+kind = "integrations"
+parser = "markdown"
+weight = 1.5
+
+[[document_sources.rules]]
+path_glob = "docs/templates/**"
+kind = "documentation"
+parser = "markdown"
+weight = 1.2
+
+[[document_sources.rules]]
+path_glob = "CHANGELOG.md"
+kind = "changelog"
+parser = "markdown"
+weight = 0.8
+
+[[document_sources.rules]]
+path_glob = "docs/tasks/tasks.csv"
+kind = "tasks-registry"
+parser = "csv"
+weight = 1.4
+
 [cli]
 default_json = false
 

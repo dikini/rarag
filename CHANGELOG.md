@@ -10,6 +10,10 @@ The format is based on Common Changelog:
 ### Added
 
 - Added a Stage 1 architecture/design package for semantic document retrieval, temporal/causal history retrieval, and task-based usefulness evaluation, plus deferred Stage 2 and Stage 3 plans for prompt/skill templates and offline optimization.
+- Added Stage 1 retrieval-foundation implementation batch 1 in `rarag-core`: shared TOML document-source defaults with override support (including `docs/tasks/tasks.csv` CSV parsing), metadata storage for document/history/lineage records, and evaluation-ready observation fields (`eval_task_id`, evidence-class coverage).
+- Added Stage 1 retrieval-foundation implementation batch 2 in `rarag-core`: history ingestion/lineage derivation persistence, bounded history retrieval selectors in CLI/daemon/MCP, eval fixture loading and replay tests, and query-time `doc_rank_weight` backfill from `document_sources.rules` so TOML rank overrides also apply to pre-marker snapshots.
+- Added semantic document ingestion for Markdown heading blocks and CSV row blocks, plus indexing persistence of document blocks and new regression fixtures covering specs/plans/ops/templates/changelog/tasks.
+- Added mixed code+document retrieval regressions and rerank priors that prefer normative spec/ops evidence over future-plan or changelog evidence for present-behavior queries while keeping retrieval bounded and snapshot-local.
 - Added `docs/ops/quickstart.md` as a terse user/operator onboarding path with explicit install, run, validation, and Codex MCP handoff steps.
 - Added onboarding guidance for single-project use, multi-project concurrency, and git worktree usage in `docs/ops/quickstart.md`.
 - Added `rarag-mcp serve-stdio` with MCP `Content-Length` stdio framing so harnesses like Codex can run `rarag-mcp` as a stdio MCP server while still routing tool calls through the daemon socket.

@@ -20,6 +20,10 @@ pub struct AppConfig {
     #[serde(default)]
     pub observability: ObservabilityConfig,
     #[serde(default)]
+    pub document_sources: DocumentSourcesConfig,
+    #[serde(default)]
+    pub history: HistoryConfig,
+    #[serde(default)]
     pub cli: Option<CliConfig>,
     #[serde(default)]
     pub daemon: Option<DaemonConfig>,
@@ -60,6 +64,8 @@ impl Default for AppConfig {
             },
             retrieval: RetrievalConfig::default(),
             observability: ObservabilityConfig::default(),
+            document_sources: DocumentSourcesConfig::default(),
+            history: HistoryConfig::default(),
             cli: None,
             daemon: Some(DaemonConfig {
                 socket_path: format!("{runtime_root}/{}", crate::workspace::default_socket_name()),
@@ -70,6 +76,145 @@ impl Default for AppConfig {
                     crate::workspace::default_mcp_socket_name()
                 ),
             }),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DocumentSourcesConfig {
+    pub rules: Vec<DocumentSourceRule>,
+}
+
+impl Default for DocumentSourcesConfig {
+    fn default() -> Self {
+        Self {
+            rules: vec![
+                DocumentSourceRule::new(
+                    "docs/specs/**",
+                    DocumentSourceKind::Spec,
+                    DocumentSourceParser::Markdown,
+                    1.8,
+                ),
+                DocumentSourceRule::new(
+                    "docs/plans/**",
+                    DocumentSourceKind::Plan,
+                    DocumentSourceParser::Markdown,
+                    1.0,
+                ),
+                DocumentSourceRule::new(
+                    "docs/ops/**",
+                    DocumentSourceKind::Ops,
+                    DocumentSourceParser::Markdown,
+                    1.5,
+                ),
+                DocumentSourceRule::new(
+                    "docs/integrations/**",
+                    DocumentSourceKind::Integrations,
+                    DocumentSourceParser::Markdown,
+                    1.5,
+                ),
+                DocumentSourceRule::new(
+                    "docs/templates/**",
+                    DocumentSourceKind::Documentation,
+                    DocumentSourceParser::Markdown,
+                    1.2,
+                ),
+                DocumentSourceRule::new(
+                    "CHANGELOG.md",
+                    DocumentSourceKind::Changelog,
+                    DocumentSourceParser::Markdown,
+                    0.8,
+                ),
+                DocumentSourceRule::new(
+                    "docs/tasks/tasks.csv",
+                    DocumentSourceKind::TasksRegistry,
+                    DocumentSourceParser::Csv,
+                    1.4,
+                ),
+            ],
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DocumentSourceRule {
+    pub path_glob: String,
+    pub kind: DocumentSourceKind,
+    pub parser: DocumentSourceParser,
+    pub weight: f32,
+}
+
+impl DocumentSourceRule {
+    pub fn new(
+        path_glob: impl Into<String>,
+        kind: DocumentSourceKind,
+        parser: DocumentSourceParser,
+        weight: f32,
+    ) -> Self {
+        Self {
+            path_glob: path_glob.into(),
+            kind,
+            parser,
+            weight,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DocumentSourceKind {
+    Spec,
+    Plan,
+    Ops,
+    Integrations,
+    Changelog,
+    TasksRegistry,
+    Documentation,
+}
+
+impl DocumentSourceKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Spec => "spec",
+            Self::Plan => "plan",
+            Self::Ops => "ops",
+            Self::Integrations => "integrations",
+            Self::Changelog => "changelog",
+            Self::TasksRegistry => "tasks-registry",
+            Self::Documentation => "documentation",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DocumentSourceParser {
+    Markdown,
+    Csv,
+}
+
+impl DocumentSourceParser {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Markdown => "markdown",
+            Self::Csv => "csv",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct HistoryConfig {
+    pub enabled: bool,
+    pub max_commits: usize,
+}
+
+impl Default for HistoryConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_commits: 128,
         }
     }
 }

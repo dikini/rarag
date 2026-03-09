@@ -51,6 +51,7 @@ Operations:
 - `INSTALL.md`
 - `docs/ops/systemd-user.md`
 - `docs/ops/lancedb-runtime.md`
+- `examples/eval/README.md`
 
 ## Repository Layout
 

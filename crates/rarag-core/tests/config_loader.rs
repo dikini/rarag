@@ -172,3 +172,43 @@ verbosity = "summary"
     assert!(config.observability.enabled);
     assert_eq!(config.observability.verbosity.to_string(), "summary");
 }
+
+#[test]
+fn toml_overrides_document_sources_and_history() {
+    let _guard = env_lock().lock().expect("env lock");
+    let dir = tempdir().expect("tempdir");
+    let explicit = dir.path().join("rarag.toml");
+
+    write_config(
+        &explicit,
+        r#"
+[history]
+enabled = true
+max_commits = 256
+
+[[document_sources.rules]]
+path_glob = "docs/specs/**"
+kind = "spec"
+parser = "markdown"
+weight = 2.0
+
+[[document_sources.rules]]
+path_glob = "docs/tasks/tasks.csv"
+kind = "tasks-registry"
+parser = "csv"
+weight = 1.3
+"#,
+    );
+
+    unsafe {
+        std::env::remove_var("RARAG_CONFIG");
+        std::env::remove_var("XDG_CONFIG_HOME");
+    }
+
+    let config = load_app_config(Some(&explicit)).expect("load explicit config");
+    assert_eq!(config.history.max_commits, 256);
+    assert_eq!(config.document_sources.rules.len(), 2);
+    assert_eq!(config.document_sources.rules[0].path_glob, "docs/specs/**");
+    assert_eq!(config.document_sources.rules[1].kind.as_str(), "tasks-registry");
+    assert_eq!(config.document_sources.rules[1].parser.as_str(), "csv");
+}

@@ -16,6 +16,14 @@ fn fixture_root() -> PathBuf {
         .join("tests/fixtures/mini_repo")
 }
 
+fn compat_fixture_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|path| path.parent())
+        .expect("workspace root")
+        .join("tests/fixtures/compat_repo")
+}
+
 fn runtime() -> Runtime {
     Runtime::new().expect("tokio runtime")
 }
@@ -199,5 +207,57 @@ fn reindexes_fixture_repository() {
                 .expect("point count"),
             counts.vector_points
         );
+    });
+}
+
+#[test]
+fn indexes_docs_templates_and_changelog_as_document_blocks() {
+    runtime().block_on(async {
+        let dir = tempdir().expect("tempdir");
+        let metadata_path = dir.path().join("metadata.db");
+        let tantivy_dir = dir.path().join("tantivy");
+        let metadata = SnapshotStore::open_local(&metadata_path.display().to_string())
+            .await
+            .expect("open metadata store");
+        let snapshot = metadata
+            .create_or_get_snapshot(SnapshotKey::new(
+                "/repo",
+                "/repo/.worktrees/index-docs",
+                "abc123",
+                "x86_64-unknown-linux-gnu",
+                ["default"],
+                "dev",
+            ))
+            .await
+            .expect("create snapshot");
+        let tantivy = TantivyChunkStore::open(&tantivy_dir).expect("open tantivy");
+        let lancedb =
+            LanceDbPointStore::new_in_memory("memory://index-docs", "rarag_chunks", 4);
+        let provider = StaticEmbeddingProvider { dimensions: 4 };
+        let indexer = ChunkIndexer::new(&metadata, &tantivy, &lancedb, &provider);
+        let chunks = RustChunker::new(120)
+            .chunk_workspace(&compat_fixture_root())
+            .expect("chunk workspace");
+
+        indexer
+            .reindex_snapshot(&snapshot.id, &chunks)
+            .await
+            .expect("reindex snapshot");
+
+        let docs = metadata
+            .load_document_blocks(&snapshot.id)
+            .await
+            .expect("load document blocks");
+
+        assert!(docs.iter().any(|doc| {
+            doc.file_path.ends_with("docs/specs/current-behavior.md") && doc.document_kind == "spec"
+        }));
+        assert!(docs.iter().any(|doc| {
+            doc.file_path.ends_with("docs/templates/plan.template.md")
+                && doc.document_kind == "documentation"
+        }));
+        assert!(docs
+            .iter()
+            .any(|doc| doc.file_path.ends_with("CHANGELOG.md") && doc.document_kind == "changelog"));
     });
 }

@@ -220,6 +220,10 @@ fn map_tool_call(name: &str, arguments: Value) -> Result<DaemonRequest, String> 
                     .map(|value| value.parse().map_err(|err| format!("invalid limit: {err}")))
                     .transpose()?,
                 changed_paths: value_array_strings(&arguments, "changed_paths"),
+                include_history: value_bool(&arguments, "include_history").unwrap_or(false),
+                history_max_nodes: value_usize(&arguments, "history_max_nodes")
+                    .transpose()?,
+                eval_task_id: value_string(&arguments, "eval_task_id"),
             };
             if matches!(name, "blast_radius" | "rag_blast_radius") {
                 Ok(DaemonRequest::BlastRadius(payload))
@@ -265,6 +269,23 @@ fn value_array_strings(arguments: &Value, key: &str) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn value_bool(arguments: &Value, key: &str) -> Option<bool> {
+    arguments.get(key).and_then(Value::as_bool)
+}
+
+fn value_usize(arguments: &Value, key: &str) -> Option<Result<usize, String>> {
+    arguments.get(key).map(|value| match value {
+        Value::Number(number) => number
+            .as_u64()
+            .ok_or_else(|| format!("invalid {key}: expected non-negative integer"))
+            .and_then(|value| usize::try_from(value).map_err(|err| err.to_string())),
+        Value::String(text) => text
+            .parse::<usize>()
+            .map_err(|err| format!("invalid {key}: {err}")),
+        _ => Err(format!("invalid {key}: expected integer")),
+    })
 }
 
 fn send_daemon_request(
