@@ -1,5 +1,7 @@
 # User/Ops Quickstart
 
+<!-- Sync-ID: 2026-03-10-local-user-install-and-index-helpers -->
+
 This page is the shortest path to a working local `rarag` setup for operators and end users.
 
 ## 0. Prerequisites
@@ -126,13 +128,28 @@ rarag service restart --service all
 rarag status --worktree "$PWD" --json
 ```
 
-## 9. Codex MCP Registration
+## 9. Optional Helper Scripts
+
+From the `rarag` repo checkout:
+
+```bash
+scripts/local/rarag-user-install.sh
+scripts/local/rarag-project-index.sh add --worktree /path/to/project
+scripts/local/rarag-project-index.sh watch --worktree /path/to/project --debounce-seconds 90
+```
+
+Notes:
+
+- `rarag-user-install.sh` installs binaries to `~/.local/bin`, prepares config, and installs/restarts user services.
+- `rarag-project-index.sh watch` uses `inotifywait` with debounce so indexing happens after filesystem quiet periods instead of every intermediate edit.
+
+## 10. Codex MCP Registration
 
 Use:
 
 - `docs/integrations/codex.md`
 
-## 10. Optional Eval Replay
+## 11. Optional Eval Replay
 
 Run fixture-driven offline replay against the current daemon:
 

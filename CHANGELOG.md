@@ -32,6 +32,7 @@ The format is based on Common Changelog:
 - Added LanceDB ANN drift integration coverage that compares indexed (`nprobes`/`refine_factor`) versus flat-baseline score and top-k behavior for cosine, L2, and dot metrics.
 - Added low-memory nextest tuning by explicitly setting single-test execution in `.config/nextest.toml` and reducing Cargo build parallelism in `scripts/check-tests.sh` (configurable via `RARAG_NEXTEST_BUILD_JOBS` and `RARAG_NEXTEST_PROFILE`).
 - Added tracked-advisory governance for `cargo audit` warnings via `docs/security/advisories.toml` and `scripts/check-tracked-advisories.sh`, so policy checks emit explicit warning annotations for accepted transitive advisories and fail when tracking entries expire, disappear, or miss new warning IDs.
+- Added local user helper scripts: `scripts/local/rarag-user-install.sh` (installs binaries into `~/.local/bin`, provisions config, and installs/restarts user services) and `scripts/local/rarag-project-index.sh` (add/reindex plus debounced inotify watch mode for quiet-period reindexing).
 - Added daemon config reload controls through `SIGHUP`, `rarag daemon reload`, and MCP tool `rag_reload_config`.
 - Added a repository RAG architecture spec, design note, and phased implementation plan for a Rust-first, worktree-aware hybrid retrieval system using Turso, Tantivy, Qdrant, `ra_ap_syntax`, and `rust-analyzer`.
 - Added the Phase 1 Rust workspace skeleton with `rarag-core`, `raragd`, `rarag`, and `rarag-mcp`, plus bootstrap tests and toolchain configuration.
