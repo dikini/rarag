@@ -1,0 +1,17 @@
+# Sync-ID: 2026-03-10-dependency-security-tracked-advisories
+
+[[tracked]]
+id = "RUSTSEC-2024-0436"
+owner = "repo-maintainers"
+review_by = "2026-06-30"
+tracking_task = "2026-03-08-dependency-refresh"
+introduced_via = "paste via turso/lance/datafusion transitive dependencies"
+notes = "Unmaintained advisory tracked until upstream dependency graph removes or replaces paste."
+
+[[tracked]]
+id = "RUSTSEC-2026-0002"
+owner = "repo-maintainers"
+review_by = "2026-06-30"
+tracking_task = "2026-03-08-dependency-refresh"
+introduced_via = "lru 0.12.x via tantivy 0.24.x/0.25.x (direct and lancedb-transitive)"
+notes = "Unsound advisory tracked until tantivy/lancedb dependency lines move off lru 0.12.x."

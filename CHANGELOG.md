@@ -31,6 +31,7 @@ The format is based on Common Changelog:
 - Added configurable heuristic rerank and neighborhood weights in shared TOML config, plus opt-in retrieval observation persistence for offline eval generation.
 - Added LanceDB ANN drift integration coverage that compares indexed (`nprobes`/`refine_factor`) versus flat-baseline score and top-k behavior for cosine, L2, and dot metrics.
 - Added low-memory nextest tuning by explicitly setting single-test execution in `.config/nextest.toml` and reducing Cargo build parallelism in `scripts/check-tests.sh` (configurable via `RARAG_NEXTEST_BUILD_JOBS` and `RARAG_NEXTEST_PROFILE`).
+- Added tracked-advisory governance for `cargo audit` warnings via `docs/security/advisories.toml` and `scripts/check-tracked-advisories.sh`, so policy checks emit explicit warning annotations for accepted transitive advisories and fail when tracking entries expire, disappear, or miss new warning IDs.
 - Added daemon config reload controls through `SIGHUP`, `rarag daemon reload`, and MCP tool `rag_reload_config`.
 - Added a repository RAG architecture spec, design note, and phased implementation plan for a Rust-first, worktree-aware hybrid retrieval system using Turso, Tantivy, Qdrant, `ra_ap_syntax`, and `rust-analyzer`.
 - Added the Phase 1 Rust workspace skeleton with `rarag-core`, `raragd`, `rarag`, and `rarag-mcp`, plus bootstrap tests and toolchain configuration.
@@ -52,6 +53,7 @@ The format is based on Common Changelog:
 
 ### Fixed
 
+- Fixed dependency-security CI failure by updating `quinn-proto` from `0.11.13` to `0.11.14` in `Cargo.lock`, resolving `RUSTSEC-2026-0037` (DoS in Quinn endpoints) pulled transitively via `reqwest`.
 - Fixed dependency-refresh baseline by removing obsolete advisory ignore `RUSTSEC-2025-0134` from `deny.toml` after verifying `rustls-pemfile` is no longer in the dependency graph; `RUSTSEC-2024-0436` remains temporarily ignored while `paste` stays transitive.
 - Fixed dependency/security policy alignment by adding explicit GPL license metadata to workspace crates, allowing required transitive licenses in `deny.toml`, and pinning local path dependency versions to satisfy wildcard-ban checks.
 - Fixed the `policy-checks` GitHub Actions workflow to invoke the official `rhysd/actionlint` installer script with the correct positional arguments (`latest <dir>`) in a writable runner-local bin directory exported to `PATH`.

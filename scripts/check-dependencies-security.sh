@@ -52,6 +52,7 @@ fi
 
 if need_tool "cargo audit --version" "cargo-audit"; then
   cargo audit
+  scripts/check-tracked-advisories.sh
 fi
 
 echo "dependency-security: OK"
