@@ -9,6 +9,8 @@ The format is based on Common Changelog:
 
 ### Added
 
+- Added a config-only optimization experiment harness in `scripts/run-optimization-experiments.sh` that uses prebuilt `target/release` binaries, preserves per-run replay/config artifacts under gitignored `docs/ops/optimization-runs/generated/`, and emits per-cycle analysis for multi-cycle offline tuning.
+- Added a cross-method optimization findings report (`docs/ops/optimization-runs/2026-03-10-optimization-method-report.md`) documenting split-fixture and hard-fixture 3x10 cycle results, candidate-selection strategy, and the observed `--include-history` recall vs warning tradeoff.
 - Added a Stage 1 architecture/design package for semantic document retrieval, temporal/causal history retrieval, and task-based usefulness evaluation, plus deferred Stage 2 and Stage 3 plans for prompt/skill templates and offline optimization.
 - Added Stage 1 retrieval-foundation implementation batch 1 in `rarag-core`: shared TOML document-source defaults with override support (including `docs/tasks/tasks.csv` CSV parsing), metadata storage for document/history/lineage records, and evaluation-ready observation fields (`eval_task_id`, evidence-class coverage).
 - Added Stage 1 retrieval-foundation implementation batch 2 in `rarag-core`: history ingestion/lineage derivation persistence, bounded history retrieval selectors in CLI/daemon/MCP, eval fixture loading and replay tests, and query-time `doc_rank_weight` backfill from `document_sources.rules` so TOML rank overrides also apply to pre-marker snapshots.
@@ -62,6 +64,7 @@ The format is based on Common Changelog:
 
 ### Changed
 
+- Changed test-concurrency safeguards to reduce OOM risk in ad-hoc and policy runs: set repo-wide Cargo defaults (`.cargo/config.toml`) to `build.jobs = 3` and forced `RUST_TEST_THREADS = 1`, kept `nextest` capped via `.config/nextest.toml` `test-threads = 1`, removed misleading `threads-required = 1`, and updated `scripts/check-tests.sh` fallback to export bounded Cargo/test thread env vars (overrideable via `RARAG_CARGO_BUILD_JOBS` and `RARAG_RUST_TEST_THREADS`).
 - Changed onboarding docs to optimize readability by routing README and installation flows through a single quickstart-first user/ops path.
 - Added a README dependency note explaining that `CDLA-Permissive-2.0` appears via `webpki-roots` pulled by `reqwest`/`rustls` TLS support.
 - Changed `README.md` into a concise documentation hub that routes users to install, ops, and integration guides instead of duplicating detailed operator steps inline.

@@ -1,2 +1,6 @@
 [build]
 target-dir = "target"
+jobs = 3
+
+[env]
+RUST_TEST_THREADS = { value = "1", force = true }

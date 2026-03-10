@@ -32,6 +32,8 @@ if cargo nextest --version >/dev/null 2>&1; then
   echo "check-tests: running cargo nextest run --profile ${nextest_profile} -j ${nextest_build_jobs} ${args[*]}"
   cargo nextest run --profile "${nextest_profile}" -j "${nextest_build_jobs}" "${args[@]}"
 else
-  echo "check-tests: running cargo test ${args[*]}"
-  cargo test "${args[@]}"
+  cargo_build_jobs="${RARAG_CARGO_BUILD_JOBS:-2}"
+  rust_test_threads="${RARAG_RUST_TEST_THREADS:-1}"
+  echo "check-tests: running CARGO_BUILD_JOBS=${cargo_build_jobs} RUST_TEST_THREADS=${rust_test_threads} cargo test ${args[*]}"
+  CARGO_BUILD_JOBS="${cargo_build_jobs}" RUST_TEST_THREADS="${rust_test_threads}" cargo test "${args[@]}"
 fi

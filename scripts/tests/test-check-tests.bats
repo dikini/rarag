@@ -46,3 +46,22 @@ EOF
   run rg '^test --workspace$' "$TMP_DIR/calls.log"
   [ "$status" -eq 0 ]
 }
+
+@test "check-tests cargo-test fallback exports concurrency caps" {
+  mkdir -p "$TMP_DIR/bin"
+  cat > "$TMP_DIR/bin/cargo" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$1" == "nextest" && "$2" == "--version" ]]; then
+  exit 1
+fi
+echo "${CARGO_BUILD_JOBS-<unset>} ${RUST_TEST_THREADS-<unset>} $*" >> "$TMP_DIR/calls.log"
+exit 0
+EOF
+  chmod +x "$TMP_DIR/bin/cargo"
+
+  run env PATH="$TMP_DIR/bin:$PATH" TMP_DIR="$TMP_DIR" "$ROOT/scripts/check-tests.sh" --workspace
+  [ "$status" -eq 0 ]
+  run rg '^2 1 test --workspace$' "$TMP_DIR/calls.log"
+  [ "$status" -eq 0 ]
+}

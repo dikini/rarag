@@ -1,3 +1,2 @@
 [profile.default]
-threads-required = 1
 test-threads = 1
